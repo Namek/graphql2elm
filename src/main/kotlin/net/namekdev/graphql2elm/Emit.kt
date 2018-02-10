@@ -58,7 +58,8 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                     if (isFirstField) {
                         emit.lineContinue("[")
                         isFirstField = false
-                    } else {
+                    }
+                    else {
                         emit.lineContinue(",")
                     }
                 }
@@ -97,7 +98,7 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                     val isSubTypeFlat = subType.kind == SCALAR || subType.kind == ENUM
 
                     if (isSubTypeFlat) {
-                        emit.lineContinue(" ( list ")
+                        emit.lineContinue(" (list ")
                     }
                     else {
                         emit.indentForward()
@@ -121,7 +122,7 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                     }
 
                     if (isSubTypeFlat) {
-                        emit.lineContinue(" )")
+                        emit.lineContinue(")")
                     }
                     else {
                         emit.lineBegin(")")
@@ -137,20 +138,21 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                 }
 
                 ENUM -> {
-                    // TODO
+//                    throw Exception("TODO")
                 }
             }
 
             if (chainWithForObject) {
                 emit.lineEnd(")")
             }
-        }
-
-        if (fields.size == 1) {
-            emit.lineEmit(")")
-        }
-        else if (!chainWithForObject) {
-            emit.lineContinue("]")
+            else {
+                if (fields.size > 1) {
+                    emit.lineContinue("]")
+                }
+                else {
+                    emit.lineEmit(")")
+                }
+            }
         }
 
         emit.indentBackward()
