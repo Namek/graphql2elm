@@ -242,13 +242,13 @@ class QueryParser(val schema: Schema) : GraphQLBaseListener() {
                 val field = schema.findFieldByPath(opType, path + fieldName)
                 val selectedField: QField =
                     if (field is QObjectField) {
-                        val subFields = traverseFields(fieldCtx.selectionSet(), opType, path + fieldName)
+                        val subFields = traverseFields(fieldCtx.selectionSet()!!, opType, path + fieldName)
                         QObjectField(field.name, subFields, field.fullType, field.isNullable)
                     }
                     else if (field is QListField) {
                         val selectedSubFields =
                             if (fieldCtx.selectionSet() != null)
-                                traverseFields(fieldCtx.selectionSet(), opType, path + fieldName)
+                                traverseFields(fieldCtx.selectionSet()!!, opType, path + fieldName)
                             else null
 
                         QListField(field.name, field.ofType, selectedSubFields, field.isNullable)
