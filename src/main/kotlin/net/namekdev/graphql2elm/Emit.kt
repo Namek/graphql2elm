@@ -2,18 +2,18 @@ package net.namekdev.graphql2elm
 
 import kotlin.math.roundToInt
 
-fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
-    val emit = CodeEmitter(generatedTypesPrefix)
+fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
+    val emit = CodeEmitter(emitCfg)
     val hasInput = op.inputType != null
     val funcName = "someRequest" + (Math.random()*100).roundToInt()
-    val returnSelection = inferReturnType(op)
+    val (returnSelection, isReturnSelectionNullable) = inferReturnType(op)
     val generatedTypes = identifyNewTypes(op, returnSelection)
 
     emit.lineEmit("import GraphQL.Request.Builder exposing (..)")
     emit.lineEmpty()
 
     // add a comment showing original query defined in GraphQL
-    emit.lineEmit("{-| The exact call is:")
+    emit.lineEmit("{-| Decoder for query:")
     emit.lineEmpty()
     emit.indentForward()
     emitGraphQL(op, emit)
@@ -26,8 +26,34 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
     if (hasInput) {
         // TODO: inputType "-> "
     }
-    val returnTypeAsStr = "(" + returnSelection.stringifyType(generatedTypes, emit.typePrefix) + ")"
-    emit.lineEnd("Request ", op.opType.name, " ", returnTypeAsStr)
+
+    val returnTypeAsStr = {
+        val sb = StringBuilder()
+        val returnTypeAsStr = returnSelection.stringifyType(generatedTypes, emit.cfg)
+        val isCompound = returnTypeAsStr.contains(' ')
+
+        if (isCompound || isReturnSelectionNullable)
+            sb.append("(")
+
+        if (isReturnSelectionNullable) {
+            sb.append("Maybe ")
+        }
+
+        if (isCompound)
+            sb.append("(")
+
+        sb.append(returnTypeAsStr)
+
+        if (isCompound)
+            sb.append(")")
+
+        if (isCompound || isReturnSelectionNullable)
+            sb.append(")")
+
+        sb.toString()
+    }
+
+    emit.lineEnd("Request ", op.opType.name, " ", returnTypeAsStr())
     emit.lineBegin(funcName)
 
     if (hasInput) {
@@ -72,13 +98,34 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
 
             emit.lineContinue("field \"", field.name, "\"")
 
+
+            // TODO: field arguments, right now we ignore them
             if (field is QObjectField) {
                 emit.indentForward()
                 emit.lineBegin("[]")
+            }
+            else {
+                emit.lineContinue(" [] ")
+            }
+
+            // field decoder
+            if (emitCfg.emitMaybeForNullableFields && field.isNullable) {
+                if (field is QObjectField) {
+                    emit.lineBegin("( ")
+                    emit.indentForward()
+                }
+                else {
+                    emit.lineContinue("(")
+                }
+
+                emit.lineContinue("nullable <| ")
+            }
+
+            if (field is QObjectField) {
                 emit.lineBegin("(")
 
                 if (field.selectedFields.size > 1) {
-                    emit.lineEnd(" object ", field.stringifyType(generatedTypes, emit.typePrefix))
+                    emit.lineEnd(" object ", field.stringifyType(generatedTypes, emit.cfg))
                     appendDecoder(field.selectedFields, true)
                 }
                 else {
@@ -89,8 +136,6 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                 emit.indentBackward()
             }
             else if (field is QListField) {
-                emit.lineContinue(" []")
-
                 val subType = field.ofType
                 val isSubTypeFlat = subType.isFlatType
 
@@ -105,15 +150,15 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                 }
 
                 if (subType is QObjectType) {
-                    emit.lineContinue(" object ", subType.stringifyType(generatedTypes, emit.typePrefix, field.selectedFields))
+                    emit.lineContinue(" object ", subType.stringifyType(generatedTypes, emit.cfg, field.selectedFields))
                     appendDecoder(field.selectedFields!!, true)
                 }
                 // TODO: does it even exist?
 //                else if (subType is QListField) {
 //                    appendDecoder(field.selectedFields, false)
 //                }
-                else if (subType.isFlatType) {
-                    emit.lineContinue(subType.name)
+                else if (isSubTypeFlat) {
+                    emit.lineContinue(backendTypeToFrontendDecoder(subType.name))
                 }
 
                 if (isSubTypeFlat) {
@@ -127,11 +172,20 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
                 }
             }
             else if (field is QScalarField) {
-                emit.lineContinue(" [] ")
                 emit.lineContinue(backendTypeToFrontendDecoder(field.type.name))
             }
             else if (field is QEnumField) {
-//                    throw Exception("TODO")
+                emit.lineContinue("decode${field.type.name.capitalize()}")
+            }
+
+            if (emitCfg.emitMaybeForNullableFields && field.isNullable) {
+                if (field is QObjectField) {
+                    emit.lineEnd(")")
+                    emit.indentBackward()
+                }
+                else {
+                    emit.lineContinue(")")
+                }
             }
 
 
@@ -171,20 +225,20 @@ fun emitElmQuery(op: OperationDef, generatedTypesPrefix: String = "Q"): String {
 
     fun appendRecordAlias(type: QType) {
         if (type is QObjectType) {
-            emit.lineEmit("type alias ", emit.typePrefix, type.name, " = ")
+            emit.lineEmit("type alias ", emit.cfg.typePrefix, type.name, " = ")
             emit.indentForward()
 
             var isFirstField = true
             for (field in type.fields) {
                 emit.lineBegin(if (isFirstField) "{" else ",")
-                emit.lineEnd(" ${field.name} : ${field.stringifyType(generatedTypes, emit.typePrefix)}")
+                emit.lineEnd(" ${field.name} : ${field.stringifyType(generatedTypes, emit.cfg)}")
 
                 isFirstField = false
             }
             emit.lineEmit("}")
         }
         else if (type is QEnumType) {
-            emit.lineEmit("type ", emit.typePrefix, type.name)
+            emit.lineEmit("type ", emit.cfg.typePrefix, type.name)
             emit.indentForward()
 
             var isFirstValue = true
@@ -222,6 +276,9 @@ fun emitGraphQL(op: OperationDef, emit: CodeEmitter) {
         emit.indentForward(2)
         for (field in fields) {
             emit.lineBegin(field.name)
+
+            if (emit.cfg.representNullableInEmittedGraphQLComment && field.isNullable)
+                emit.lineContinue("?")
 
             if (field is QObjectField) {
                 emit.lineEnd(" {")
@@ -268,13 +325,18 @@ fun backendTypeToFrontendType(str: String): String {
  * just a first one if the second is a list.
  * TODO check if that's all true (needs tests)
  */
-fun inferReturnType(op: OperationDef): QField {
+fun inferReturnType(op: OperationDef): Pair<QField, Boolean> {
     var fields = op.fields
     var cur: QField? = null
     var depth = 0
+    var foundAnyNullable = false
 
     loop@ while (fields.size == 1) {
         cur = fields[0]
+        if (cur!!.isNullable) {
+            foundAnyNullable = true
+        }
+
         if (cur is QObjectField) {
             fields = cur.selectedFields
             cur = fields[0]
@@ -286,19 +348,18 @@ fun inferReturnType(op: OperationDef): QField {
         }
     }
 
-    return cur!!
+    return Pair(cur!!, foundAnyNullable)
 }
 
 fun identifyNewTypes(op: OperationDef, root: QField): List<QType> {
     val foundTypes = mutableSetOf<QType>()
     val visitedFields = mutableSetOf<QField>()
-    var hasVisitedRoot = false
 
     fun rec(fields: List<QField>) {
         for (field in fields) {
             if (field == root) {
-                // the root (return type of whole query) reduces some types
-                hasVisitedRoot = true
+                // the root (return type of whole query) reduces some types,
+                // we won't need those
                 foundTypes.clear()
             }
 

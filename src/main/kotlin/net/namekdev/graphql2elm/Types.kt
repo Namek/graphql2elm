@@ -1,6 +1,6 @@
 package net.namekdev.graphql2elm
 
-class Schema {
+class Schema(val queryTypeName: String, val mutationTypeName: String) {
     val types: HashMap<String, QType> = hashMapOf()
 
     operator fun get(key: String): QType {
@@ -8,7 +8,12 @@ class Schema {
     }
 
     fun findFieldByPath(opType: OpType, path: List<String>): QField {
-        val rootTypeName = "Root" + opType.name + "Type"
+        val rootTypeName =
+            when (opType) {
+                OpType.Query -> queryTypeName
+                OpType.Mutation -> mutationTypeName
+            }
+
         val root = types[rootTypeName]!!
 
         var curField: QField = enter(root, path[0])
@@ -44,11 +49,20 @@ enum class Kind {
     ENUM
 }
 
-abstract class QField(val name: String, val kind: Kind) {
+abstract class QField(val name: String, val kind: Kind, val isNullable: Boolean) {
     val isFlatType: Boolean = kind == Kind.SCALAR || kind == Kind.ENUM
 
-    fun stringifyType(generatedTypes: List<QType>? = null, typePrefix: String = ""): String {
+    fun stringifyType(generatedTypes: List<QType>? = null, cfg: CodeEmitterConfig? = null): String {
         val sb = StringBuilder()
+        val shouldEmitMaybe = cfg?.emitMaybeForNullableFields == true && isNullable
+
+        if (shouldEmitMaybe) {
+            sb.append("Maybe ")
+
+            if (!this.isFlatType) {
+                sb.append("(")
+            }
+        }
 
         when (this) {
             is QListField -> {
@@ -57,8 +71,16 @@ abstract class QField(val name: String, val kind: Kind) {
                     sb.append(this.ofType.name)
                 }
                 else {
-                    sb.append("(")
-                    sb.append(this.ofType.stringifyType(generatedTypes, typePrefix, this.selectedFields), ")")
+                    val ofTypeAsStr = this.ofType.stringifyType(generatedTypes, cfg, this.selectedFields)
+                    val isCompoundType = ofTypeAsStr.contains(' ')
+
+                    if (isCompoundType)
+                        sb.append("(")
+
+                    sb.append(ofTypeAsStr)
+
+                    if (isCompoundType)
+                        sb.append(")")
                 }
             }
             is QObjectField -> {
@@ -75,13 +97,19 @@ abstract class QField(val name: String, val kind: Kind) {
                 }
 
                 val theType = generatedTypes?.find { matchesMe(it) } ?: this.fullType
-                sb.append(theType.stringifyType(generatedTypes, typePrefix, this.selectedFields))
+                sb.append(theType.stringifyType(generatedTypes, cfg, this.selectedFields))
             }
             is QScalarField -> {
-                sb.append(this.type.stringifyType(generatedTypes, typePrefix, null))
+                sb.append(this.type.stringifyType(generatedTypes, cfg, null))
             }
             is QEnumField -> {
-                sb.append(this.type.stringifyType(generatedTypes, typePrefix, null))
+                sb.append(this.type.stringifyType(generatedTypes, cfg, null))
+            }
+        }
+
+        if (shouldEmitMaybe) {
+            if (!this.isFlatType) {
+                sb.append(")")
             }
         }
 
@@ -92,8 +120,8 @@ abstract class QField(val name: String, val kind: Kind) {
         return stringifyType()
     }
 }
-class QListField(name: String, val ofType: QType, val selectedFields: ArrayList<QField>?)
-    : QField(name, Kind.LIST) {
+class QListField(name: String, val ofType: QType, val selectedFields: ArrayList<QField>?, isNullable: Boolean)
+    : QField(name, Kind.LIST, isNullable) {
 
     fun getObjectType(): QType {
         return QObjectType(ofType.name, selectedFields!!)
@@ -117,22 +145,22 @@ class QListField(name: String, val ofType: QType, val selectedFields: ArrayList<
     }
 }
 
-class QScalarField(name: String, val type: QScalarType)
-    : QField(name, Kind.SCALAR) {
+class QScalarField(name: String, val type: QScalarType, isNullable: Boolean)
+    : QField(name, Kind.SCALAR, isNullable) {
     override fun toString(): String {
         return name
     }
 }
 
-class QEnumField(name: String, val type: QEnumType)
-    : QField(name, Kind.ENUM) {
+class QEnumField(name: String, val type: QEnumType, isNullable: Boolean)
+    : QField(name, Kind.ENUM, isNullable) {
     override fun toString(): String {
         return name
     }
 }
 
-class QObjectField(name: String, val selectedFields: ArrayList<QField>, val fullType: QObjectType)
-    : QField(name, Kind.OBJECT) {
+class QObjectField(name: String, val selectedFields: ArrayList<QField>, val fullType: QObjectType, isNullable: Boolean)
+    : QField(name, Kind.OBJECT, isNullable) {
 
     fun toType(): QObjectType {
         return QObjectType(fullType.name, selectedFields)
@@ -150,7 +178,7 @@ abstract class QType(val name: String, val isFlatType: Boolean, val originalType
         return originalType ?: this
     }
 
-    fun stringifyType(generatedTypes: List<QType>? = null, typePrefix: String = "", selectedFields: ArrayList<QField>?): String {
+    fun stringifyType(generatedTypes: List<QType>? = null, cfg: CodeEmitterConfig? = null, selectedFields: ArrayList<QField>?): String {
         val sb = StringBuilder()
 
         fun matchesMe(type: QType): Boolean {
@@ -166,8 +194,8 @@ abstract class QType(val name: String, val isFlatType: Boolean, val originalType
         }
 
         val theType = generatedTypes?.find { matchesMe(it) } ?: this
-        if (theType !is QScalarType || !theType.isStandardElmType()) {
-            sb.append(typePrefix)
+        if (cfg != null && (theType !is QScalarType || !theType.isStandardElmType())) {
+            sb.append(cfg.typePrefix)
         }
         sb.append(backendTypeToFrontendType(theType.name))
 

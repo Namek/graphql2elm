@@ -2,7 +2,7 @@ package net.namekdev.graphql2elm
 
 import java.lang.Integer.max
 
-class CodeEmitter(val typePrefix: String) {
+class CodeEmitter(val cfg: CodeEmitterConfig) {
     private val sb = StringBuilder()
     private var curIndent: Int = 0
 
@@ -28,6 +28,9 @@ class CodeEmitter(val typePrefix: String) {
     }
 
     fun lineContinue(vararg str: String) {
+        if (isLineFinished())
+            doIndent()
+
         sb.append(*str)
     }
 
@@ -63,3 +66,20 @@ class CodeEmitter(val typePrefix: String) {
         return sb.toString()
     }
 }
+
+data class CodeEmitterConfig(
+        /**
+         * Prefix for names of generated types (record aliases, enums).
+         */
+        var typePrefix: String,
+
+        /**
+         * Should put a question mark after nullable field name?
+         */
+        var representNullableInEmittedGraphQLComment: Boolean,
+
+        /**
+         * Put "nullable" as type decoder wrapper and wrap with "Maybe" for fields in record aliases.
+         */
+        val emitMaybeForNullableFields: Boolean
+)
