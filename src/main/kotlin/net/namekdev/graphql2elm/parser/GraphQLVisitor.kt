@@ -1,5 +1,5 @@
 // Generated from C:/Users/Namek/.babun/cygwin/home/Namek/graphql2elm/src\GraphQL.g4 by ANTLR 4.7
-package net.namekdev.graphql2elm
+package net.namekdev.graphql2elm.parser
 
 import org.antlr.v4.runtime.tree.ParseTreeVisitor
 

@@ -1,12 +1,10 @@
 // Generated from C:/Users/Namek/.babun/cygwin/home/Namek/graphql2elm/src\GraphQL.g4 by ANTLR 4.7
-package net.namekdev.graphql2elm
+package net.namekdev.graphql2elm.parser
 
 import org.antlr.v4.runtime.atn.*
 import org.antlr.v4.runtime.dfa.DFA
 import org.antlr.v4.runtime.*
-import org.antlr.v4.runtime.misc.*
 import org.antlr.v4.runtime.tree.*
-import java.util.ArrayList
 
 class GraphQLParser(input: TokenStream) : Parser(input) {
 
@@ -174,7 +172,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
         }
 
         fun NAME(): TerminalNode? {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         fun variableDefinitions(): VariableDefinitionsContext {
@@ -566,7 +564,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
         }
 
         fun NAME(): TerminalNode {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         override fun getRuleIndex(): Int {
@@ -624,11 +622,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class AliasContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
         fun NAME(): List<TerminalNode> {
-            return getTokens(GraphQLParser.NAME)
+            return getTokens(NAME)
         }
 
         fun NAME(i: Int): TerminalNode {
-            return getToken(GraphQLParser.NAME, i)
+            return getToken(NAME, i)
         }
 
         override fun getRuleIndex(): Int {
@@ -747,7 +745,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class ArgumentContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
         fun NAME(): TerminalNode {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         fun valueOrVariable(): ValueOrVariableContext {
@@ -1008,7 +1006,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class FragmentNameContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
         fun NAME(): TerminalNode {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         override fun getRuleIndex(): Int {
@@ -1115,7 +1113,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class DirectiveContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
         fun NAME(): TerminalNode {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         fun valueOrVariable(): ValueOrVariableContext {
@@ -1387,7 +1385,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class VariableContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
         fun NAME(): TerminalNode {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         override fun getRuleIndex(): Int {
@@ -1558,7 +1556,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class StringValueContext(ctx: ValueContext) : ValueContext() {
         fun STRING(): TerminalNode {
-            return getToken(GraphQLParser.STRING, 0)
+            return getToken(STRING, 0)
         }
 
         init {
@@ -1583,7 +1581,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class BooleanValueContext(ctx: ValueContext) : ValueContext() {
         fun BOOLEAN(): TerminalNode {
-            return getToken(GraphQLParser.BOOLEAN, 0)
+            return getToken(BOOLEAN, 0)
         }
 
         init {
@@ -1608,7 +1606,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class NumberValueContext(ctx: ValueContext) : ValueContext() {
         fun NUMBER(): TerminalNode {
-            return getToken(GraphQLParser.NUMBER, 0)
+            return getToken(NUMBER, 0)
         }
 
         init {
@@ -1798,7 +1796,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
 
     class TypeNameContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
         fun NAME(): TerminalNode {
-            return getToken(GraphQLParser.NAME, 0)
+            return getToken(NAME, 0)
         }
 
         override fun getRuleIndex(): Int {

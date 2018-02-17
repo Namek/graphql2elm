@@ -1,5 +1,8 @@
 package net.namekdev.graphql2elm
 
+import net.namekdev.graphql2elm.parser.GraphQLBaseListener
+import net.namekdev.graphql2elm.parser.GraphQLLexer
+import net.namekdev.graphql2elm.parser.GraphQLParser
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.tree.ParseTreeWalker
