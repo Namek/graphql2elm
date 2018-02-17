@@ -42,7 +42,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContexts(DefinitionContext::class.java)
         }
 
-        fun definition(i: Int): DefinitionContext {
+        fun definition(i: Int): DefinitionContext? {
             return getRuleContext(DefinitionContext::class.java, i)
         }
 
@@ -100,11 +100,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class DefinitionContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun operationDefinition(): OperationDefinitionContext {
+        fun operationDefinition(): OperationDefinitionContext? {
             return getRuleContext(OperationDefinitionContext::class.java, 0)
         }
 
-        fun fragmentDefinition(): FragmentDefinitionContext {
+        fun fragmentDefinition(): FragmentDefinitionContext? {
             return getRuleContext(FragmentDefinitionContext::class.java, 0)
         }
 
@@ -167,7 +167,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(SelectionSetContext::class.java, 0)
         }
 
-        fun operationType(): OperationTypeContext {
+        fun operationType(): OperationTypeContext? {
             return getRuleContext(OperationTypeContext::class.java, 0)
         }
 
@@ -175,11 +175,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getToken(NAME, 0)
         }
 
-        fun variableDefinitions(): VariableDefinitionsContext {
+        fun variableDefinitions(): VariableDefinitionsContext? {
             return getRuleContext(VariableDefinitionsContext::class.java, 0)
         }
 
-        fun directives(): DirectivesContext {
+        fun directives(): DirectivesContext? {
             return getRuleContext(DirectivesContext::class.java, 0)
         }
 
@@ -275,7 +275,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContexts(SelectionContext::class.java)
         }
 
-        fun selection(i: Int): SelectionContext {
+        fun selection(i: Int): SelectionContext? {
             return getRuleContext(SelectionContext::class.java, i)
         }
 
@@ -300,7 +300,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     @Throws(RecognitionException::class)
-    fun selectionSet(): SelectionSetContext {
+    fun selectionSet(): SelectionSetContext? {
         val _localctx = SelectionSetContext(_ctx, state)
         enterRule(_localctx, 6, RULE_selectionSet)
         var _la: Int
@@ -398,15 +398,15 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class SelectionContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun field(): FieldContext {
+        fun field(): FieldContext? {
             return getRuleContext(FieldContext::class.java, 0)
         }
 
-        fun fragmentSpread(): FragmentSpreadContext {
+        fun fragmentSpread(): FragmentSpreadContext? {
             return getRuleContext(FragmentSpreadContext::class.java, 0)
         }
 
-        fun inlineFragment(): InlineFragmentContext {
+        fun inlineFragment(): InlineFragmentContext? {
             return getRuleContext(InlineFragmentContext::class.java, 0)
         }
 
@@ -475,11 +475,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(FieldNameContext::class.java, 0)
         }
 
-        fun arguments(): ArgumentsContext {
+        fun arguments(): ArgumentsContext? {
             return getRuleContext(ArgumentsContext::class.java, 0)
         }
 
-        fun directives(): DirectivesContext {
+        fun directives(): DirectivesContext? {
             return getRuleContext(DirectivesContext::class.java, 0)
         }
 
@@ -559,11 +559,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class FieldNameContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun alias(): AliasContext {
+        fun alias(): AliasContext? {
             return getRuleContext(AliasContext::class.java, 0)
         }
 
-        fun NAME(): TerminalNode {
+        fun NAME(): TerminalNode? {
             return getToken(NAME, 0)
         }
 
@@ -588,7 +588,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     @Throws(RecognitionException::class)
-    fun fieldName(): FieldNameContext {
+    fun fieldName(): FieldNameContext? {
         val _localctx = FieldNameContext(_ctx, state)
         enterRule(_localctx, 14, RULE_fieldName)
         try {
@@ -621,11 +621,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class AliasContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun NAME(): List<TerminalNode> {
+        fun NAME(): List<TerminalNode>? {
             return getTokens(NAME)
         }
 
-        fun NAME(i: Int): TerminalNode {
+        fun NAME(i: Int): TerminalNode? {
             return getToken(NAME, i)
         }
 
@@ -674,11 +674,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class ArgumentsContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun argument(): List<ArgumentContext> {
+        fun argument(): List<ArgumentContext>? {
             return getRuleContexts(ArgumentContext::class.java)
         }
 
-        fun argument(i: Int): ArgumentContext {
+        fun argument(i: Int): ArgumentContext? {
             return getRuleContext(ArgumentContext::class.java, i)
         }
 
@@ -801,7 +801,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(FragmentNameContext::class.java, 0)
         }
 
-        fun directives(): DirectivesContext {
+        fun directives(): DirectivesContext? {
             return getRuleContext(DirectivesContext::class.java, 0)
         }
 
@@ -867,7 +867,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(SelectionSetContext::class.java, 0)
         }
 
-        fun directives(): DirectivesContext {
+        fun directives(): DirectivesContext? {
             return getRuleContext(DirectivesContext::class.java, 0)
         }
 
@@ -941,7 +941,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(SelectionSetContext::class.java, 0)
         }
 
-        fun directives(): DirectivesContext {
+        fun directives(): DirectivesContext? {
             return getRuleContext(DirectivesContext::class.java, 0)
         }
 
@@ -1054,7 +1054,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContexts(DirectiveContext::class.java)
         }
 
-        fun directive(i: Int): DirectiveContext {
+        fun directive(i: Int): DirectiveContext? {
             return getRuleContext(DirectiveContext::class.java, i)
         }
 
@@ -1250,7 +1250,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContexts(VariableDefinitionContext::class.java)
         }
 
-        fun variableDefinition(i: Int): VariableDefinitionContext {
+        fun variableDefinition(i: Int): VariableDefinitionContext? {
             return getRuleContext(VariableDefinitionContext::class.java, i)
         }
 
@@ -1324,7 +1324,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(TypeContext::class.java, 0)
         }
 
-        fun defaultValue(): DefaultValueContext {
+        fun defaultValue(): DefaultValueContext? {
             return getRuleContext(DefaultValueContext::class.java, 0)
         }
 
@@ -1478,11 +1478,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class ValueOrVariableContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun value(): ValueContext {
+        fun value(): ValueContext? {
             return getRuleContext(ValueContext::class.java, 0)
         }
 
-        fun variable(): VariableContext {
+        fun variable(): VariableContext? {
             return getRuleContext(VariableContext::class.java, 0)
         }
 
@@ -1711,7 +1711,7 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
             return getRuleContext(TypeNameContext::class.java, 0)
         }
 
-        fun nonNullType(): NonNullTypeContext {
+        fun nonNullType(): NonNullTypeContext? {
             return getRuleContext(NonNullTypeContext::class.java, 0)
         }
 
@@ -1930,11 +1930,11 @@ class GraphQLParser(input: TokenStream) : Parser(input) {
     }
 
     class ArrayContext(parent: ParserRuleContext, invokingState: Int) : ParserRuleContext(parent, invokingState) {
-        fun value(): List<ValueContext> {
+        fun value(): List<ValueContext>? {
             return getRuleContexts(ValueContext::class.java)
         }
 
-        fun value(i: Int): ValueContext {
+        fun value(i: Int): ValueContext? {
             return getRuleContext(ValueContext::class.java, i)
         }
 
