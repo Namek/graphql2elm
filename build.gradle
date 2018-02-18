@@ -2,29 +2,43 @@ buildscript {
     ext.kotlin_version = '1.2.21'
 
     repositories {
+        maven { url "https://jitpack.io" }
         mavenCentral()
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.github.Namek:teavm-gradle-plugin:d76d55c0a2" // this worked for java only: 25ccdc310f
+        // multi-dir but doesnt seem to work: c59ad380e4
     }
 }
 
 group 'net.namekdev.graphql2elm'
 version '0.1-SNAPSHOT'
 
-apply plugin: 'antlr'
-apply plugin: 'java'
 apply plugin: 'kotlin'
+apply plugin: 'com.edibleday.teavm'
 
+mainClassName = "net.namekdev.graphql2elm.WebStarter"
 sourceCompatibility = 1.8
 
+teavmc {
+    installDirectory "${project.buildDir}/teavm"
+    minified true
+}
+sourceSets.main.output.classesDir = new File(buildDir, "classes/main")
+sourceSets.test.output.classesDir = new File(buildDir, "classes/test")
+kotlin.copyClassesToJavaOutput = true
+
+
 repositories {
+    maven { url "https://jitpack.io" }
     mavenCentral()
 }
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    compile "org.antlr:antlr4:4.7"
+//    compile "org.antlr:antlr4:4.7"
+    compile "com.github.Namek.antlr4:antlr4-runtime:9b142c3c17"
     compile "org.json:json:20171018"
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
@@ -35,3 +49,12 @@ compileKotlin {
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
 }
+
+
+task copyHtml(type: Copy) {
+    from "${projectDir}/src/main/webapp/"
+    into "${project.buildDir}/teavm"
+}
+
+teavmc.dependsOn copyHtml
+teavmc.dependsOn compileKotlin
