@@ -11,9 +11,6 @@ import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 
 fun main(args: Array<String>) {
-    val typeSystemStr = queryForSchema()
-    val typeSystem = parseSchemaJson(typeSystemStr)
-
     val str1 = """
     query {
       currentUser {
@@ -79,13 +76,21 @@ fun main(args: Array<String>) {
     }
     """.trimIndent()
 
-    val input = CharStreams.fromString(str3)
+    val elmCode = parseQueryAndSchemaThenGenerateElmCode(str3, queryForSchema())
+    print(elmCode)
+
+    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(elmCode), null)
+}
+
+fun parseQueryAndSchemaThenGenerateElmCode(query: String, schema: String): String {
+    val input = CharStreams.fromString(query)
     val lexer = GraphQLLexer(input)
     val tokens = CommonTokenStream(lexer)
+    val parser = GraphQLParser(tokens)
 
-    val p = GraphQLParser(tokens)
+    val typeSystem = parseSchemaJson(schema)
     val listener = QueryParser(typeSystem)
-    ParseTreeWalker().walk(listener, p.document())
+    ParseTreeWalker().walk(listener, parser.document())
 
     val knownTypes = arrayListOf<RegisteredType>(
             RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
@@ -93,9 +98,8 @@ fun main(args: Array<String>) {
     val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
     val emitterConfig = CodeEmitterConfig("Q", true, true, knownTypes, backendTypesMap)
     val elmCode = emitElmQuery(listener.output.operations[0], emitterConfig)
-    print(elmCode)
 
-    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(elmCode), null)
+    return elmCode
 }
 
 fun queryForSchema(): String {
