@@ -50,7 +50,36 @@ fun main(args: Array<String>) {
     }
     """.trimIndent()
 
-    val input = CharStreams.fromString(str2)
+    val str3 = """
+    query {
+      currentUser {
+        balances {
+          otherUser {
+            id
+            name
+          }
+          value
+          iHaveMore
+          sharedPaymentCount
+          transferCount
+          unseenUpdateCount
+        }
+        transactions{
+          amount
+          description
+          tags
+          transactionType
+          paidAt
+          payeeIds
+          payees {
+            id
+          }
+        }
+      }
+    }
+    """.trimIndent()
+
+    val input = CharStreams.fromString(str3)
     val lexer = GraphQLLexer(input)
     val tokens = CommonTokenStream(lexer)
 
@@ -58,7 +87,11 @@ fun main(args: Array<String>) {
     val listener = QueryParser(typeSystem)
     ParseTreeWalker().walk(listener, p.document())
 
-    val emitterConfig = CodeEmitterConfig("Q", true, true)
+    val knownTypes = arrayListOf<RegisteredType>(
+            RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
+    )
+    val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
+    val emitterConfig = CodeEmitterConfig("Q", true, true, knownTypes, backendTypesMap)
     val elmCode = emitElmQuery(listener.output.operations[0], emitterConfig)
     print(elmCode)
 
@@ -100,7 +133,7 @@ fun parseSchemaJson(schemaJson: String): Schema {
                 QScalarType(name)
 
             Kind.OBJECT -> {
-                QObjectType(name, arrayListOf())
+                QObjectType(name, arrayListOf(), null)
             }
 
             Kind.ENUM -> {

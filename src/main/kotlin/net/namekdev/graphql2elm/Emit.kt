@@ -7,9 +7,22 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     val hasInput = op.inputType != null
     val funcName = "someRequest" + (Math.random()*100).roundToInt()
     val (returnSelection, isReturnSelectionNullable) = inferReturnType(op)
-    val generatedTypes = identifyNewTypes(op, returnSelection)
+    val (generatedTypes, allTypes) = traverseForNewTypes(op, returnSelection, emitCfg)
 
     emit.lineEmit("import GraphQL.Request.Builder exposing (..)")
+
+    allTypes
+        .groupBy { it.name }
+        .map { it.value.get(0) }
+        .mapNotNull { emitCfg.getType(it) }
+        .filter { it.importPackageName != null }
+        .groupBy { it.importPackageName }
+        .forEach { (importPackageName, types) ->
+            emit.lineBegin("import ", importPackageName!!, " exposing (")
+            emit.lineEnd(types.map { it.name }.joinToString(), ")")
+        }
+
+    emit.lineEmpty()
     emit.lineEmpty()
 
     // add a comment showing original query defined in GraphQL
@@ -137,10 +150,10 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             }
             else if (field is QListField) {
                 val subType = field.ofType
-                val isSubTypeFlat = subType.isFlatType
+                val isSubTypeScalar = subType.isScalarType
 
-                if (isSubTypeFlat) {
-                    emit.lineContinue(" (list ")
+                if (isSubTypeScalar) {
+                    emit.lineContinue("(list ")
                 }
                 else {
                     emit.indentForward()
@@ -157,11 +170,11 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 //                else if (subType is QListField) {
 //                    appendDecoder(field.selectedFields, false)
 //                }
-                else if (isSubTypeFlat) {
-                    emit.lineContinue(backendTypeToFrontendDecoder(subType.name))
+                else if (isSubTypeScalar) {
+                    emit.lineContinue(emitCfg.backendTypeToFrontendDecoder(subType))
                 }
 
-                if (isSubTypeFlat) {
+                if (isSubTypeScalar) {
                     emit.lineContinue(")")
                 }
                 else {
@@ -172,10 +185,10 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
                 }
             }
             else if (field is QScalarField) {
-                emit.lineContinue(backendTypeToFrontendDecoder(field.type.name))
+                emit.lineContinue(emitCfg.backendTypeToFrontendDecoder(field.type))
             }
             else if (field is QEnumField) {
-                emit.lineContinue("decode${field.type.name.capitalize()}")
+                emit.lineContinue(emitCfg.backendTypeToFrontendDecoder(field.type))
             }
 
             if (emitCfg.emitMaybeForNullableFields && field.isNullable) {
@@ -220,10 +233,8 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     emit.lineEnd()
     emit.indentReset()
 
-    // Return type
-    emit.lineEmpty()
 
-    fun appendRecordAlias(type: QType) {
+    fun appendTypeDefinition(type: QType) {
         if (type is QObjectType) {
             emit.lineEmit("type alias ", emit.cfg.typePrefix, type.name, " = ")
             emit.indentForward()
@@ -249,21 +260,21 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             }
         }
         else if (type is QScalarType) {
-            if (type.isStandardElmType()) {
-                throw IllegalStateException("standard Elm type should not be here")
+            if (emit.cfg.isKnownType(type)) {
+                throw IllegalStateException("Any known or standard Elm type should not be here")
             }
 
-            // TODO emit decoder?
             emit.lineEmit("decode", type.name.capitalize(), " = 0")
         }
 
         emit.indentBackward()
-        emit.lineEmpty()
     }
 
     generatedTypes
         .forEach {
-            appendRecordAlias(it)
+            emit.lineEmpty()
+            emit.lineEmpty()
+            appendTypeDefinition(it)
         }
 
     return emit.toString()
@@ -304,20 +315,6 @@ fun emitGraphQL(op: OperationDef, emit: CodeEmitter) {
     emit.lineEmit("}")
 }
 
-fun backendTypeToFrontendDecoder(str: String): String {
-    return when (str) {
-        "Boolean" -> "bool"
-        else -> str.toLowerCase()
-    }
-}
-
-fun backendTypeToFrontendType(str: String): String {
-    return when (str) {
-        "Boolean" -> "Bool"
-        else -> str
-    }
-}
-
 /**
  * Infers the shortest type it's needed.
  * For instance, if there is selection like: 1 field -> 1 field -> 3 fields
@@ -333,7 +330,7 @@ fun inferReturnType(op: OperationDef): Pair<QField, Boolean> {
 
     loop@ while (fields.size == 1) {
         cur = fields[0]
-        if (cur!!.isNullable) {
+        if (cur.isNullable) {
             foundAnyNullable = true
         }
 
@@ -351,8 +348,9 @@ fun inferReturnType(op: OperationDef): Pair<QField, Boolean> {
     return Pair(cur!!, foundAnyNullable)
 }
 
-fun identifyNewTypes(op: OperationDef, root: QField): List<QType> {
-    val foundTypes = mutableSetOf<QType>()
+fun traverseForNewTypes(op: OperationDef, root: QField, emitCfg: CodeEmitterConfig): Pair<List<QType>, Set<QType>> {
+    val newTypes = mutableSetOf<QType>()
+    val allTypes = mutableSetOf<QType>()
     val visitedFields = mutableSetOf<QField>()
 
     fun rec(fields: List<QField>) {
@@ -360,7 +358,8 @@ fun identifyNewTypes(op: OperationDef, root: QField): List<QType> {
             if (field == root) {
                 // the root (return type of whole query) reduces some types,
                 // we won't need those
-                foundTypes.clear()
+                newTypes.clear()
+                allTypes.clear()
             }
 
             if (visitedFields.contains(field))
@@ -370,21 +369,42 @@ fun identifyNewTypes(op: OperationDef, root: QField): List<QType> {
 
             when (field) {
                 is QObjectField -> {
-                    foundTypes.add(field.toType())
-                    rec(field.selectedFields)
+                    val newType = field.toType()
+                    allTypes.add(field.fullType)
+
+                    if (!emitCfg.isKnownType(newType)) {
+                        newTypes.add(newType)
+                        rec(field.selectedFields)
+                    }
                 }
                 is QListField -> {
-                    if (!field.ofType.isFlatType) {
-                        foundTypes.add(field.getObjectType())
-                        field.selectedFields?.let { rec(it) }
+                    allTypes.add(field.ofType.fullType())
+
+                    if (!field.ofType.isScalarType) {
+                        val newType = QObjectType(field.ofType.name, field.selectedFields!!, field.ofType)
+                        if (!emitCfg.isKnownType(newType)) {
+                            newTypes.add(newType)
+                            field.selectedFields.let { rec(it) }
+                        }
+                    }
+                    else {
+                        if (!emitCfg.isKnownType(field.ofType)) {
+                            newTypes.add(field.ofType)
+                        }
                     }
                 }
                 is QEnumField -> {
-                    foundTypes.add(field.type)
+                    allTypes.add(field.type.fullType())
+
+                    if (!emitCfg.isKnownType(field.type)) {
+                        newTypes.add(field.type)
+                    }
                 }
                 is QScalarField -> {
-                    if (!field.type.isStandardElmType()) {
-                        foundTypes.add(field.type)
+                    allTypes.add(field.type.fullType())
+
+                    if (!emitCfg.isKnownType(field.type)) {
+                        newTypes.add(field.type)
                     }
                 }
             }
@@ -392,12 +412,10 @@ fun identifyNewTypes(op: OperationDef, root: QField): List<QType> {
     }
     rec(op.fields)
 
-    val allTypes = foundTypes
+    // now let's rename types which names are duplicated
+    val generatedTypes = newTypes
         .toList()
         .sortedBy { "${it.javaClass.simpleName}_${it.name}" }
-
-    // now let's rename types which names are duplicated
-    return allTypes
         .groupBy { it.name }
         .map {
             val types = it.value
@@ -413,4 +431,7 @@ fun identifyNewTypes(op: OperationDef, root: QField): List<QType> {
             }
         }
         .flatten()
+
+
+    return Pair(generatedTypes, allTypes)
 }

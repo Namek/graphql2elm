@@ -66,20 +66,3 @@ class CodeEmitter(val cfg: CodeEmitterConfig) {
         return sb.toString()
     }
 }
-
-data class CodeEmitterConfig(
-        /**
-         * Prefix for names of generated types (record aliases, enums).
-         */
-        var typePrefix: String,
-
-        /**
-         * Should put a question mark after nullable field name?
-         */
-        var representNullableInEmittedGraphQLComment: Boolean,
-
-        /**
-         * Put "nullable" as type decoder wrapper and wrap with "Maybe" for fields in record aliases.
-         */
-        val emitMaybeForNullableFields: Boolean
-)

@@ -50,7 +50,7 @@ enum class Kind {
 }
 
 abstract class QField(val name: String, val kind: Kind, val isNullable: Boolean) {
-    val isFlatType: Boolean = kind == Kind.SCALAR || kind == Kind.ENUM
+    val isScalarType: Boolean = kind == Kind.SCALAR || kind == Kind.ENUM
 
     fun stringifyType(generatedTypes: List<QType>? = null, cfg: CodeEmitterConfig? = null): String {
         val sb = StringBuilder()
@@ -59,7 +59,7 @@ abstract class QField(val name: String, val kind: Kind, val isNullable: Boolean)
         if (shouldEmitMaybe) {
             sb.append("Maybe ")
 
-            if (!this.isFlatType) {
+            if (!this.isScalarType) {
                 sb.append("(")
             }
         }
@@ -67,7 +67,7 @@ abstract class QField(val name: String, val kind: Kind, val isNullable: Boolean)
         when (this) {
             is QListField -> {
                 sb.append("List ")
-                if (this.ofType.isFlatType) {
+                if (this.ofType.isScalarType) {
                     sb.append(this.ofType.name)
                 }
                 else {
@@ -108,7 +108,7 @@ abstract class QField(val name: String, val kind: Kind, val isNullable: Boolean)
         }
 
         if (shouldEmitMaybe) {
-            if (!this.isFlatType) {
+            if (!this.isScalarType) {
                 sb.append(")")
             }
         }
@@ -123,15 +123,11 @@ abstract class QField(val name: String, val kind: Kind, val isNullable: Boolean)
 class QListField(name: String, val ofType: QType, val selectedFields: ArrayList<QField>?, isNullable: Boolean)
     : QField(name, Kind.LIST, isNullable) {
 
-    fun getObjectType(): QType {
-        return QObjectType(ofType.name, selectedFields!!)
-    }
-
     override fun equals(other: Any?): Boolean {
         if (other !is QListField || !super.equals(other))
             return false
 
-        if (ofType.name != other.ofType.name || ofType.isFlatType != other.ofType.isFlatType)
+        if (ofType.name != other.ofType.name || ofType.isScalarType != other.ofType.isScalarType)
             return false
 
         if (selectedFields?.size != other.selectedFields?.size)
@@ -163,7 +159,7 @@ class QObjectField(name: String, val selectedFields: ArrayList<QField>, val full
     : QField(name, Kind.OBJECT, isNullable) {
 
     fun toType(): QObjectType {
-        return QObjectType(fullType.name, selectedFields)
+        return QObjectType(fullType.name, selectedFields, fullType)
     }
 
     override fun toString(): String {
@@ -171,7 +167,7 @@ class QObjectField(name: String, val selectedFields: ArrayList<QField>, val full
     }
 }
 
-abstract class QType(val name: String, val isFlatType: Boolean, val originalType: QType?) {
+abstract class QType(val name: String, val isScalarType: Boolean, val originalType: QType?) {
     abstract fun getRenamed(newName: String): QType
 
     fun fullType(): QType {
@@ -194,10 +190,15 @@ abstract class QType(val name: String, val isFlatType: Boolean, val originalType
         }
 
         val theType = generatedTypes?.find { matchesMe(it) } ?: this
-        if (cfg != null && (theType !is QScalarType || !theType.isStandardElmType())) {
-            sb.append(cfg.typePrefix)
+        if (cfg != null) {
+            if (!cfg.isKnownType(theType)) {
+                sb.append(cfg.typePrefix)
+            }
+            sb.append(cfg.backendTypeToFrontendType(theType.name))
         }
-        sb.append(backendTypeToFrontendType(theType.name))
+        else {
+            sb.append(theType.name)
+        }
 
         return sb.toString()
     }
@@ -213,11 +214,6 @@ class QScalarType(name: String, originalType: QType? = null)
         return QScalarType(newName, fullType())
     }
 
-    fun isStandardElmType(): Boolean {
-        return name == "Boolean"
-            || arrayOf("String", "Int", "Bool", "Float", "Char").any { it == name }
-    }
-
     override fun toString(): String {
         return name
     }
@@ -230,7 +226,7 @@ class QEnumType(name: String, val enumValues: List<String>, originalType: QType?
     }
 }
 
-class QObjectType(name: String, val fields: ArrayList<QField>, originalType: QType? = null)
+class QObjectType(name: String, val fields: ArrayList<QField>, originalType: QType?)
     : QType(name, false, originalType) {
     override fun getRenamed(newName: String): QObjectType {
         return QObjectType(newName, fields, fullType())
