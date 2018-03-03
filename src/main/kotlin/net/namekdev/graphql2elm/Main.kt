@@ -1,6 +1,8 @@
 package net.namekdev.graphql2elm
 
-import org.json.JSONObject
+import com.eclipsesource.json.Json
+import com.eclipsesource.json.JsonObject
+import net.namekdev.graphql2elm.parsers.GraphQLParser
 
 
 fun main(args: Array<String>) {
@@ -20,7 +22,7 @@ fun main(args: Array<String>) {
         }
       }
     }
-    """.trimIndent()
+    """
 
     val str2 = """
     query {
@@ -38,7 +40,7 @@ fun main(args: Array<String>) {
         }
       }
     }
-    """.trimIndent()
+    """
 
     val str3 = """
     query {
@@ -67,7 +69,7 @@ fun main(args: Array<String>) {
         }
       }
     }
-    """.trimIndent()
+    """
 
     val elmCode = generateElmCode(query = str3, schema = queryForSchema())
     print(elmCode)
@@ -190,21 +192,24 @@ fun queryForSchema(): String {
 }
 
 fun parseSchemaJson(schemaJson: String): Schema {
-    val jsonRoot = JSONObject(schemaJson).getJSONObject("data").getJSONObject("__schema")
-    val jsonTypes = jsonRoot.getJSONArray("types")
-    val queryTypeName = jsonRoot.getJSONObject("queryType").getString("name")
-    val mutationTypeName = jsonRoot.getJSONObject("mutationType").getString("name")
+    val doc = Json.parse(schemaJson)
+
+    val jsonRoot = doc.asObject()["data"].asObject()["__schema"].asObject()
+
+    val jsonTypes = jsonRoot["types"].asArray()
+    val queryTypeName = jsonRoot["queryType"].asObject().getString("name", null)!!
+    val mutationTypeName = jsonRoot["mutationType"].asObject().getString("name", null)!!
 
     val schema = Schema(queryTypeName, mutationTypeName)
 
-    for (i in 0 until jsonTypes.length()) {
-        val jsonType = jsonTypes.getJSONObject(i)
-        val name = jsonType.getString("name")
+    for (i in 0 until jsonTypes.size()) {
+        val jsonType = jsonTypes[i].asObject()
+        val name = jsonType.getString("name", null)!!
 
         if (name.startsWith("__"))
             continue
 
-        val kind = Kind.valueOf(jsonType.getString("kind"))
+        val kind = Kind.valueOf(jsonType.getString("kind", null)!!)
 
         val newType = when (kind) {
             Kind.LIST ->
@@ -218,9 +223,9 @@ fun parseSchemaJson(schemaJson: String): Schema {
             }
 
             Kind.ENUM -> {
-                val enumValues = jsonType.getJSONArray("enumValues")
+                val enumValues = jsonType["enumValues"].asArray()
                     .map {
-                        (it as JSONObject).getString("name")
+                        it.asObject().getString("name", null)!!
                     }
 
                 QEnumType(name, enumValues)
@@ -231,25 +236,25 @@ fun parseSchemaJson(schemaJson: String): Schema {
 
     val fieldsToFillWithTypes = arrayListOf<QField>()
 
-    for (i in 0 until jsonTypes.length()) {
-        val jsonType = jsonTypes.getJSONObject(i)
-        val name = jsonType.getString("name")
+    for (i in 0 until jsonTypes.size()) {
+        val jsonType = jsonTypes[i].asObject()
+        val name = jsonType.getString("name", null)!!
 
         if (name.startsWith("__"))
             continue
 
         val type = schema[name] as? QObjectType ?: continue
-        val jsonFields = jsonType.getJSONArray("fields")
+        val jsonFields = jsonType["fields"].asArray()
 
-        for (j in 0 until jsonFields.length()) {
-            val jsonField = jsonFields.getJSONObject(j)
-            val fieldName = jsonField.getString("name")
-            val jsonFieldType = jsonField.getJSONObject("type")
-            val isNonNull = jsonFieldType.getString("kind") == "NON_NULL"
+        for (j in 0 until jsonFields.size()) {
+            val jsonField = jsonFields[j].asObject()
+            val fieldName = jsonField.getString("name", null)!!
+            val jsonFieldType = jsonField["type"].asObject()
+            val isNonNull = jsonFieldType.getString("kind", null)!! == "NON_NULL"
 
-            fun rec(jsonFieldType: JSONObject, isNonNull: Boolean): QField {
-                val typeName = if (jsonFieldType.isNull("name")) null else jsonFieldType.getString("name")
-                val typeKind = jsonFieldType.getString("kind")
+            fun rec(jsonFieldType: JsonObject, isNonNull: Boolean): QField {
+                val typeName: String? = if (jsonFieldType.get("name").isNull()) null else jsonFieldType.getString("name", null)!!
+                val typeKind = jsonFieldType.getString("kind", null)
 
                 // TODO read jsonField['args']
 
@@ -277,8 +282,8 @@ fun parseSchemaJson(schemaJson: String): Schema {
                     }
 
                     "LIST" -> {
-                        val jsonFieldTypeOfType = jsonFieldType.getJSONObject("ofType")
-                        val fieldSubTypeName = jsonFieldTypeOfType.getString("name")
+                        val jsonFieldTypeOfType = jsonFieldType["ofType"].asObject()
+                        val fieldSubTypeName = jsonFieldTypeOfType.getString("name", null)!!
                         val ofType = schema[fieldSubTypeName]
 
                         val selectedFields =
@@ -296,7 +301,7 @@ fun parseSchemaJson(schemaJson: String): Schema {
                     }
 
                     "NON_NULL" -> {
-                        val jsonFieldTypeOfType = jsonFieldType.getJSONObject("ofType")
+                        val jsonFieldTypeOfType = jsonFieldType["ofType"].asObject()
                         rec(jsonFieldTypeOfType, true)
                     }
 

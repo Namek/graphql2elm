@@ -1,4 +1,4 @@
-package net.namekdev.graphql2elm
+package net.namekdev.graphql2elm.parsers
 
 abstract class AbstractParser {
     /**
@@ -392,7 +392,7 @@ class GraphQLParser(private val buffer: String) : AbstractParser() {
     private fun fieldName(): FieldName = block("fieldName", {
         expectAnyOf(
                 ::alias,
-                {FieldName(NAME(), null)}
+                { FieldName(NAME(), null) }
         ) as FieldName
     })
 

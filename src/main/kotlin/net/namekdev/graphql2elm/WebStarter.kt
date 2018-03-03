@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
         }
       }
     }
-    """.trimIndent()
+    """
 
     preEl.innerHTML = generateElmCode(query = str1, schema = queryForSchema())
 }

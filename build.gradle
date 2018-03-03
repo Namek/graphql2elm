@@ -8,8 +8,7 @@ buildscript {
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "com.github.Namek:teavm-gradle-plugin:d76d55c0a2" // this worked for java only: 25ccdc310f
-        // multi-dir but doesnt seem to work: c59ad380e4
+        classpath "com.github.Namek:teavm-gradle-plugin:8d167ed9c2"//0.4.4-SNAPSHOT"
     }
 }
 
