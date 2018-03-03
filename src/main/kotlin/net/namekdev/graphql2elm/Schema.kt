@@ -25,7 +25,7 @@ class Schema(val queryTypeName: String, val mutationTypeName: String) {
                 curField = enter(curField.fullType, path[i])
             }
             else {
-                throw IllegalStateException("can't enter into field " + curField)
+                throw IllegalStateException("can't enter into field ${curField.name}")
             }
         }
 
@@ -38,7 +38,7 @@ class Schema(val queryTypeName: String, val mutationTypeName: String) {
             return field ?: throw Exception("no field '$into' in '${type.name}'")
         }
 
-        throw IllegalStateException("can't enter into type $type")
+        throw IllegalStateException("can't enter into type ${type.name}")
     }
 }
 
