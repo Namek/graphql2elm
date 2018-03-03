@@ -7,8 +7,12 @@ import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.tree.ParseTreeWalker
 import org.json.JSONObject
+import org.teavm.jso.browser.Window
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+
+
+
 
 fun main(args: Array<String>) {
     val str1 = """
@@ -76,13 +80,13 @@ fun main(args: Array<String>) {
     }
     """.trimIndent()
 
-    val elmCode = parseQueryAndSchemaThenGenerateElmCode(str3, queryForSchema())
+    val elmCode = generateElmCode(query = str3, schema = queryForSchema())
     print(elmCode)
 
     Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(elmCode), null)
 }
 
-fun parseQueryAndSchemaThenGenerateElmCode(query: String, schema: String): String {
+fun generateElmCode(query: String, schema: String): String {
     val input = CharStreams.fromString(query)
     val lexer = GraphQLLexer(input)
     val tokens = CommonTokenStream(lexer)

@@ -1,6 +1,6 @@
 package net.namekdev.graphql2elm
 
-import java.lang.Integer.max
+import kotlin.math.max
 
 class CodeEmitter(val cfg: CodeEmitterConfig) {
     private val sb = StringBuilder()
