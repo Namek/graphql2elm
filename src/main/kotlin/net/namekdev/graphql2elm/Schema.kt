@@ -34,10 +34,11 @@ class Schema(val queryTypeName: String, val mutationTypeName: String) {
 
     private fun enter(type: QType, into: String): QField {
         if (type is QObjectType) {
-            return type.fields.find { it.name == into }!!
+            val field = type.fields.find { it.name == into }
+            return field ?: throw Exception("no field '$into' in '${type.name}'")
         }
 
-        throw IllegalStateException("can't enter into type " + type)
+        throw IllegalStateException("can't enter into type $type")
     }
 }
 

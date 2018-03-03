@@ -1,17 +1,6 @@
 package net.namekdev.graphql2elm
 
-import net.namekdev.graphql2elm.parser.GraphQLBaseListener
-import net.namekdev.graphql2elm.parser.GraphQLLexer
-import net.namekdev.graphql2elm.parser.GraphQLParser
-import org.antlr.v4.runtime.CharStreams
-import org.antlr.v4.runtime.CommonTokenStream
-import org.antlr.v4.runtime.tree.ParseTreeWalker
 import org.json.JSONObject
-import org.teavm.jso.browser.Window
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
-
-
 
 
 fun main(args: Array<String>) {
@@ -82,26 +71,20 @@ fun main(args: Array<String>) {
 
     val elmCode = generateElmCode(query = str3, schema = queryForSchema())
     print(elmCode)
-
-    Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(elmCode), null)
 }
 
 fun generateElmCode(query: String, schema: String): String {
-    val input = CharStreams.fromString(query)
-    val lexer = GraphQLLexer(input)
-    val tokens = CommonTokenStream(lexer)
-    val parser = GraphQLParser(tokens)
-
+    val parser = GraphQLParser(query)
     val typeSystem = parseSchemaJson(schema)
-    val listener = QueryParser(typeSystem)
-    ParseTreeWalker().walk(listener, parser.document())
+    val doc = parser.parse()!!
+    val output = mergeQueryWithSchema(doc, typeSystem)
 
     val knownTypes = arrayListOf<RegisteredType>(
             RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
     )
     val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
     val emitterConfig = CodeEmitterConfig("Q", true, true, knownTypes, backendTypesMap)
-    val elmCode = emitElmQuery(listener.output.operations[0], emitterConfig)
+    val elmCode = emitElmQuery(output.operations[0], emitterConfig)
 
     return elmCode
 }
@@ -345,57 +328,53 @@ fun parseSchemaJson(schemaJson: String): Schema {
     return schema
 }
 
-class SelectedFieldOutput(val schema: Schema) {
-    val operations = mutableListOf<OperationDef>()
-}
+class SelectedFieldOutput(val schema: Schema, val operations: List<OperationDef>)
 
 /**
- * Query parser filters entire possible field graph to a small subset defined by the query.
+ * Filter entire possible field graph to a small subset defined by the query.
  */
-class QueryParser(val schema: Schema) : GraphQLBaseListener() {
-    val output = SelectedFieldOutput(schema)
-
-    override fun enterOperationDefinition(ctx: GraphQLParser.OperationDefinitionContext) {
-        val opType = OpType.guess(ctx.operationType()?.text ?: "query")
-        val selections = ctx.selectionSet()
-
-        val opFields = traverseFields(selections, opType, listOf())
-        val op = OperationDef(opType, ctx.NAME()?.symbol?.text, opFields)
-
-        output.operations.add(op)
-    }
-
-    private fun traverseFields(selections: GraphQLParser.SelectionSetContext, opType: OpType, path: List<String>): ArrayList<QField> {
+fun mergeQueryWithSchema(doc: GraphQLParser.Document, schema: Schema): SelectedFieldOutput {
+    fun traverseFields(selectionSet: GraphQLParser.SelectionSet, opType: OpType, path: List<String>): ArrayList<QField> {
         val selectedFields = arrayListOf<QField>()
 
-        for (selection in selections.selection()) {
-            val fieldCtx = selection.field()
+        for (fieldCtx in selectionSet.fields()) {
+            val fieldName = fieldCtx.fieldName.name
+            val field = schema.findFieldByPath(opType, path + fieldName)
+            val selectedField: QField =
+                if (field is QObjectField) {
+                    val subFields = traverseFields(fieldCtx.selectionSet!!, opType, path + fieldName)
+                    QObjectField(field.name, subFields, field.fullType, field.isNullable)
+                }
+                else if (field is QListField) {
+                    // TODO tutaj fieldCtx.named="transactions" ma selectionSet=null
+                    // cos nie tak w parserze!
+                    val selectedSubFields =
+                        if (fieldCtx.selectionSet != null)
+                            traverseFields(fieldCtx.selectionSet, opType, path + fieldName)
+                        else null
 
-            if (fieldCtx != null) {
-                val fieldName = fieldCtx.fieldName().text
-                val field = schema.findFieldByPath(opType, path + fieldName)
-                val selectedField: QField =
-                    if (field is QObjectField) {
-                        val subFields = traverseFields(fieldCtx.selectionSet()!!, opType, path + fieldName)
-                        QObjectField(field.name, subFields, field.fullType, field.isNullable)
-                    }
-                    else if (field is QListField) {
-                        val selectedSubFields =
-                            if (fieldCtx.selectionSet() != null)
-                                traverseFields(fieldCtx.selectionSet()!!, opType, path + fieldName)
-                            else null
+                    QListField(field.name, field.ofType, selectedSubFields, field.isNullable)
+                }
+                else {
+                    field
+                }
 
-                        QListField(field.name, field.ofType, selectedSubFields, field.isNullable)
-                    }
-                    else {
-                        field
-                    }
-
-                selectedFields.add(selectedField)
-            }
+            selectedFields.add(selectedField)
         }
+
 
         return selectedFields
     }
+
+    val ops = doc.operations()
+        .map { opDef ->
+            val opType = OpType.guess(opDef.operationType)
+
+            val opFields = traverseFields(opDef.selectionSet, opType, listOf<String>())
+            OperationDef(opType, opDef.name, opFields)
+        }
+        .toList()
+
+    return SelectedFieldOutput(schema, ops)
 }
 
