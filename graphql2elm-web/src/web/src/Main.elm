@@ -4,6 +4,7 @@ import Html exposing (..)
 import Html.Attributes as Attr exposing (style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Misc exposing (..)
+import Ports exposing (elmCodeGenerationResult, generateElmCode)
 
 
 main : Program Never Model Msg
@@ -22,7 +23,7 @@ main =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    elmCodeGenerationResult ElmCodeGenerationResult
 
 
 
@@ -59,6 +60,7 @@ type Msg
     | SetSchema String
     | SetQuery String
     | GenerateElmCode
+    | ElmCodeGenerationResult (Maybe String)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -80,7 +82,11 @@ update msg model =
             { model | query = query } => Cmd.none
 
         GenerateElmCode ->
-            { model | elmCode = Just "some code lol" } => Cmd.none
+            model => generateElmCode ( model.query, model.schema )
+
+        ElmCodeGenerationResult res ->
+            { model | elmCode = res }
+                => Cmd.none
 
 
 

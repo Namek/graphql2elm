@@ -21,9 +21,9 @@ data class CodeEmitterConfig(
          * Registered types exist so emitter can avoid
          * creation of new types and use proper decoders/encoders.
          */
-        val knownTypes: ArrayList<RegisteredType> = arrayListOf(),
+        val knownTypes: List<RegisteredType> = listOf(),
 
-        val backendTypesMap: HashMap<String, String> = hashMapOf()
+        val backendTypesMap: Map<String, String> = hashMapOf<String, String>()
 
 ) {
     /**

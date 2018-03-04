@@ -1,8 +1,11 @@
-package net.namekdev.graphql2elm
+package net.namekdev.graphql2elm.jvm
 
-import com.eclipsesource.json.Json
-import com.eclipsesource.json.JsonObject
+import net.namekdev.graphql2elm.CodeEmitterConfig
+import net.namekdev.graphql2elm.RegisteredType
+import net.namekdev.graphql2elm.emitElmQuery
 import net.namekdev.graphql2elm.parsers.GraphQLParser
+import net.namekdev.graphql2elm.parsers.mergeQueryWithSchema
+import net.namekdev.graphql2elm.parsers.parseSchemaJson
 
 
 fun main(args: Array<String>) {
@@ -73,22 +76,6 @@ fun main(args: Array<String>) {
 
     val elmCode = generateElmCode(query = str3, schema = queryForSchema())
     print(elmCode)
-}
-
-fun generateElmCode(query: String, schema: String): String {
-    val parser = GraphQLParser(query)
-    val typeSystem = parseSchemaJson(schema)
-    val doc = parser.parse()!!
-    val output = mergeQueryWithSchema(doc, typeSystem)
-
-    val knownTypes = arrayListOf<RegisteredType>(
-            RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
-    )
-    val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
-    val emitterConfig = CodeEmitterConfig("Q", true, true, knownTypes, backendTypesMap)
-    val elmCode = emitElmQuery(output.operations[0], emitterConfig)
-
-    return elmCode
 }
 
 fun queryForSchema(): String {
@@ -191,195 +178,25 @@ fun queryForSchema(): String {
     """
 }
 
-fun parseSchemaJson(schemaJson: String): Schema {
-    val doc = Json.parse(schemaJson)
+fun generateElmCode(query: String, schema: String): String {
+    val parser = GraphQLParser(query)
+    val typeSystem = parseSchemaJson(schema)
+    val doc = parser.parse()!!
+    val output = mergeQueryWithSchema(doc, typeSystem)
 
-    val jsonRoot = doc.asObject()["data"].asObject()["__schema"].asObject()
+    val knownTypes = arrayListOf<RegisteredType>(
+            RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
+    )
+    val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
+    val emitterConfig = CodeEmitterConfig(
+            "Q",
+            true,
+            true,
+            knownTypes,
+            backendTypesMap
+    )
+    val elmCode = emitElmQuery(output.operations[0], emitterConfig)
 
-    val jsonTypes = jsonRoot["types"].asArray()
-    val queryTypeName = jsonRoot["queryType"].asObject().getString("name", null)!!
-    val mutationTypeName = jsonRoot["mutationType"].asObject().getString("name", null)!!
-
-    val schema = Schema(queryTypeName, mutationTypeName)
-
-    for (i in 0 until jsonTypes.size()) {
-        val jsonType = jsonTypes[i].asObject()
-        val name = jsonType.getString("name", null)!!
-
-        if (name.startsWith("__"))
-            continue
-
-        val kind = Kind.valueOf(jsonType.getString("kind", null)!!)
-
-        val newType = when (kind) {
-            Kind.LIST ->
-                throw IllegalStateException("no type should be defined as list")
-
-            Kind.SCALAR ->
-                QScalarType(name)
-
-            Kind.OBJECT -> {
-                QObjectType(name, arrayListOf(), null)
-            }
-
-            Kind.ENUM -> {
-                val enumValues = jsonType["enumValues"].asArray()
-                    .map {
-                        it.asObject().getString("name", null)!!
-                    }
-
-                QEnumType(name, enumValues)
-            }
-        }
-        schema.types[name] = newType
-    }
-
-    val fieldsToFillWithTypes = arrayListOf<QField>()
-
-    for (i in 0 until jsonTypes.size()) {
-        val jsonType = jsonTypes[i].asObject()
-        val name = jsonType.getString("name", null)!!
-
-        if (name.startsWith("__"))
-            continue
-
-        val type = schema[name] as? QObjectType ?: continue
-        val jsonFields = jsonType["fields"].asArray()
-
-        for (j in 0 until jsonFields.size()) {
-            val jsonField = jsonFields[j].asObject()
-            val fieldName = jsonField.getString("name", null)!!
-            val jsonFieldType = jsonField["type"].asObject()
-            val isNonNull = jsonFieldType.getString("kind", null)!! == "NON_NULL"
-
-            fun rec(jsonFieldType: JsonObject, isNonNull: Boolean): QField {
-                val typeName: String? = if (jsonFieldType.get("name").isNull()) null else jsonFieldType.getString("name", null)!!
-                val typeKind = jsonFieldType.getString("kind", null)
-
-                // TODO read jsonField['args']
-
-                return when (typeKind) {
-                    "OBJECT" -> {
-                        val objectType = schema[typeName!!] as QObjectType
-                        val fields = arrayListOf<QField>()
-
-                        // If `objectType` is same as `type` then we may not have `objectType.selectedFields` filled yet.
-                        // So, schedule it.
-
-                        val objectField = QObjectField(fieldName, fields, objectType, !isNonNull)
-                        fieldsToFillWithTypes.add(objectField)
-                        objectField
-                    }
-
-                    "SCALAR" -> {
-                        val scalarType = schema[typeName!!] as QScalarType
-                        QScalarField(fieldName, scalarType, !isNonNull)
-                    }
-
-                    "ENUM" -> {
-                        val enumType = schema[typeName!!] as QEnumType
-                        QEnumField(fieldName, enumType, !isNonNull)
-                    }
-
-                    "LIST" -> {
-                        val jsonFieldTypeOfType = jsonFieldType["ofType"].asObject()
-                        val fieldSubTypeName = jsonFieldTypeOfType.getString("name", null)!!
-                        val ofType = schema[fieldSubTypeName]
-
-                        val selectedFields =
-                                if (ofType is QObjectType)
-                                    arrayListOf<QField>()
-                                else
-                                    null
-
-                        val listField = QListField(fieldName, ofType, selectedFields, !isNonNull)
-
-                        if (selectedFields != null)
-                            fieldsToFillWithTypes.add(listField)
-
-                        listField
-                    }
-
-                    "NON_NULL" -> {
-                        val jsonFieldTypeOfType = jsonFieldType["ofType"].asObject()
-                        rec(jsonFieldTypeOfType, true)
-                    }
-
-                    else -> {
-                        throw IllegalStateException()
-                    }
-                }
-            }
-
-            val newField: QField =
-                rec(jsonFieldType, isNonNull)
-
-            type.fields.add(newField)
-        }
-    }
-
-    for (field in fieldsToFillWithTypes) {
-        if (field is QObjectField) {
-            field.selectedFields.addAll(field.fullType.fields)
-        }
-        else if (field is QListField) {
-            if (field.ofType !is QObjectType)
-                throw IllegalStateException()
-
-            field.selectedFields!!.addAll(field.ofType.fields)
-        }
-    }
-
-    return schema
-}
-
-class SelectedFieldOutput(val schema: Schema, val operations: List<OperationDef>)
-
-/**
- * Filter entire possible field graph to a small subset defined by the query.
- */
-fun mergeQueryWithSchema(doc: GraphQLParser.Document, schema: Schema): SelectedFieldOutput {
-    fun traverseFields(selectionSet: GraphQLParser.SelectionSet, opType: OpType, path: List<String>): ArrayList<QField> {
-        val selectedFields = arrayListOf<QField>()
-
-        for (fieldCtx in selectionSet.fields()) {
-            val fieldName = fieldCtx.fieldName.name
-            val field = schema.findFieldByPath(opType, path + fieldName)
-            val selectedField: QField =
-                if (field is QObjectField) {
-                    val subFields = traverseFields(fieldCtx.selectionSet!!, opType, path + fieldName)
-                    QObjectField(field.name, subFields, field.fullType, field.isNullable)
-                }
-                else if (field is QListField) {
-                    // TODO tutaj fieldCtx.named="transactions" ma selectionSet=null
-                    // cos nie tak w parserze!
-                    val selectedSubFields =
-                        if (fieldCtx.selectionSet != null)
-                            traverseFields(fieldCtx.selectionSet, opType, path + fieldName)
-                        else null
-
-                    QListField(field.name, field.ofType, selectedSubFields, field.isNullable)
-                }
-                else {
-                    field
-                }
-
-            selectedFields.add(selectedField)
-        }
-
-
-        return selectedFields
-    }
-
-    val ops = doc.operations()
-        .map { opDef ->
-            val opType = OpType.guess(opDef.operationType)
-
-            val opFields = traverseFields(opDef.selectionSet, opType, listOf<String>())
-            OperationDef(opType, opDef.name, opFields)
-        }
-        .toList()
-
-    return SelectedFieldOutput(schema, ops)
+    return elmCode
 }
 

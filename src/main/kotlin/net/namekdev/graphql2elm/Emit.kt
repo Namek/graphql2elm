@@ -5,22 +5,22 @@ import kotlin.math.roundToInt
 fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     val emit = CodeEmitter(emitCfg)
     val hasInput = op.inputType != null
-    val funcName = "someRequest" + (Math.random()*100).roundToInt()
+    val funcName = "someRequest"
     val (returnSelection, isReturnSelectionNullable) = inferReturnType(op)
     val (generatedTypes, allTypes) = traverseForNewTypes(op, returnSelection, emitCfg)
 
     emit.lineEmit("import GraphQL.Request.Builder exposing (..)")
 
     allTypes
-        .groupBy { it.name }
-        .map { it.value.get(0) }
-        .mapNotNull { emitCfg.getType(it) }
-        .filter { it.importPackageName != null }
-        .groupBy { it.importPackageName }
-        .forEach { (importPackageName, types) ->
-            emit.lineBegin("import ", importPackageName!!, " exposing (")
-            emit.lineEnd(types.map { it.name }.joinToString(), ")")
-        }
+            .groupBy { it.name }
+            .map { it.value.get(0) }
+            .mapNotNull { emitCfg.getType(it) }
+            .filter { it.importPackageName != null }
+            .groupBy { it.importPackageName }
+            .forEach { (importPackageName, types) ->
+                emit.lineBegin("import ", importPackageName!!, " exposing (")
+                emit.lineEnd(types.map { it.name }.joinToString(), ")")
+            }
 
     emit.lineEmpty()
     emit.lineEmpty()
@@ -77,8 +77,6 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 
 
     fun appendDecoder(fields: List<QField>, chainWithForObject: Boolean = false) {
-        assert(fields.size > 0)
-
         if (!chainWithForObject)
             emit.lineEnd("extract")
 
@@ -271,11 +269,11 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     }
 
     generatedTypes
-        .forEach {
-            emit.lineEmpty()
-            emit.lineEmpty()
-            appendTypeDefinition(it)
-        }
+            .forEach {
+                emit.lineEmpty()
+                emit.lineEmpty()
+                appendTypeDefinition(it)
+            }
 
     return emit.toString()
 }
@@ -414,23 +412,23 @@ fun traverseForNewTypes(op: OperationDef, root: QField, emitCfg: CodeEmitterConf
 
     // now let's rename types which names are duplicated
     val generatedTypes = newTypes
-        .toList()
-        .sortedBy { "${it.javaClass.simpleName}_${it.name}" }
-        .groupBy { it.name }
-        .map {
-            val types = it.value
+            .toList()
+            .sortedBy { "${it.fullType().name}_${it.name}" }
+            .groupBy { it.name }
+            .map {
+                val types = it.value
 
-            if (types.size > 1) {
-                var id = 1
-                types.map { type ->
-                    type.getRenamed("${type.name}${id++}")
+                if (types.size > 1) {
+                    var id = 1
+                    types.map { type ->
+                        type.getRenamed("${type.name}${id++}")
+                    }
+                }
+                else {
+                    types
                 }
             }
-            else {
-                types
-            }
-        }
-        .flatten()
+            .flatten()
 
 
     return Pair(generatedTypes, allTypes)

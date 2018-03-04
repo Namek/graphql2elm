@@ -1,0 +1,65 @@
+buildscript {
+    ext.kotlin_version = '1.2.30'
+    ext.web_output_dir = "${project.buildDir}/web"
+
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+apply plugin: 'kotlin-platform-js'
+apply plugin: 'kotlin2js'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile "org.jetbrains.kotlin:kotlin-stdlib-js:$kotlin_version"
+    expectedBy project(":")
+    testCompile "org.jetbrains.kotlin:kotlin-test-js:$kotlin_version"
+}
+
+compileKotlin2Js {
+    kotlinOptions {
+        sourceMap = false
+    }
+}
+
+
+task compileElm(type: Exec) {
+    workingDir "${projectDir}/src/web"
+
+    commandLine 'cmd', '/c', "elm-make src/Main.elm --output \"${project.buildDir}/elm/ui.js\""
+}
+
+task assembleWeb(type: Sync) {
+    configurations.compile.each { File file ->
+        from(zipTree(file.absolutePath), {
+            includeEmptyDirs = false
+            include { fileTreeElement ->
+                def path = fileTreeElement.path
+                path.endsWith(".js") && (path.startsWith("META-INF/resources/") ||
+                        !path.startsWith("META-INF/"))
+            }
+        })
+    }
+    from compileKotlin2Js.destinationDir
+
+    from ("${projectDir}/src/web") {
+        include 'index.html'
+    }
+
+    from ("${project.buildDir}/elm") {
+        include 'ui.js'
+    }
+
+    into "$web_output_dir"
+
+    dependsOn classes
+    dependsOn compileElm
+}
+
+assemble.dependsOn assembleWeb

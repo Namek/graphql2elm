@@ -1,76 +1,24 @@
 buildscript {
-    ext.kotlin_version = '1.2.21'
-    ext.web_output_dir = "${project.buildDir}/web"
+    ext.kotlin_version = '1.2.30'
 
     repositories {
-        maven { url "https://jitpack.io" }
         mavenCentral()
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "com.github.Namek:teavm-gradle-plugin:8d167ed9c2"//0.4.4-SNAPSHOT"
     }
 }
 
-group 'net.namekdev.graphql2elm'
-version '0.1-SNAPSHOT'
 
-apply plugin: 'kotlin'
-apply plugin: 'com.edibleday.teavm'
-
-mainClassName = "net.namekdev.graphql2elm.WebStarterKt"
-sourceCompatibility = 1.6
-
-
-
-teavmc {
-    installDirectory "$web_output_dir"
-    minified true
-}
-
-// move all bytecode (made of Java and Kotlin) to same folder: classes/main
-sourceSets.main.output.classesDir = new File(buildDir, "classes/main")
-sourceSets.test.output.classesDir = new File(buildDir, "classes/test")
-kotlin.copyClassesToJavaOutput = true
-
+apply plugin: 'kotlin-platform-common'
 
 repositories {
-    maven { url "https://jitpack.io" }
     mavenCentral()
+    jcenter()
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    compile "com.eclipsesource.minimal-json:minimal-json:0.9.5"
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile "org.jetbrains.kotlin:kotlin-stdlib-common:$kotlin_version"
+    testCompile "org.jetbrains.kotlin:kotlin-test-annotations-common:$kotlin_version"
+    testCompile "org.jetbrains.kotlin:kotlin-test-common:$kotlin_version"
 }
-
-compileKotlin {
-    kotlinOptions.jvmTarget = "1.6"
-}
-compileTestKotlin {
-    kotlinOptions.jvmTarget = "1.6"
-}
-
-task compileElm(type: Exec) {
-    workingDir './src/web'
-
-    commandLine 'cmd', '/c', "elm-make src/Main.elm --output \"$web_output_dir/ui.js\""
-}
-
-task copyWebStuff(type: Copy) {
-    from ("${projectDir}/src/web") {
-        include 'index.html'
-    }
-
-    from ("${project.buildDir}/teavm") {
-        include 'app.js'
-        include 'runtime.js'
-    }
-
-    into "$web_output_dir"
-}
-
-copyWebStuff.dependsOn compileElm
-teavmc.dependsOn copyWebStuff
-teavmc.dependsOn compileKotlin

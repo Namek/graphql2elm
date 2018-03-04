@@ -1,5 +1,7 @@
 package net.namekdev.graphql2elm
 
+import net.namekdev.graphql2elm.parsers.JsonParser
+
 class Schema(val queryTypeName: String, val mutationTypeName: String) {
     val types: HashMap<String, QType> = hashMapOf()
 
@@ -9,10 +11,10 @@ class Schema(val queryTypeName: String, val mutationTypeName: String) {
 
     fun findFieldByPath(opType: OpType, path: List<String>): QField {
         val rootTypeName =
-            when (opType) {
-                OpType.Query -> queryTypeName
-                OpType.Mutation -> mutationTypeName
-            }
+                when (opType) {
+                    OpType.Query -> queryTypeName
+                    OpType.Mutation -> mutationTypeName
+                }
 
         val root = types[rootTypeName]!!
 
@@ -205,7 +207,7 @@ abstract class QType(val name: String, val isScalarType: Boolean, val originalTy
     }
 
     override fun toString(): String {
-        return "${javaClass.simpleName} ${name}"
+        return "${name}"
     }
 }
 
@@ -241,8 +243,8 @@ class QObjectType(name: String, val fields: ArrayList<QField>, originalType: QTy
             return false
 
         return fields
-            .mapIndexed { idx, f -> other.fields[idx] == f }
-            .all { it }
+                .mapIndexed { idx, f -> other.fields[idx] == f }
+                .all { it }
     }
 
     override fun toString(): String {
@@ -265,12 +267,12 @@ enum class OpType {
 }
 
 class OperationDef(
-    val opType: OpType,
-    val name: String?,
-    val fields: List<QField> = ArrayList()
+        val opType: OpType,
+        val name: String?,
+        val fields: List<QField> = ArrayList()
 )
 {
-//    var returnType: QType? = null // should be getter calculated from fields?
+    //    var returnType: QType? = null // should be getter calculated from fields?
     var inputType: QType? = null
 
 }
