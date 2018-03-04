@@ -1,7 +1,15 @@
 package net.namekdev.graphql2elm.parsers
 
 class GraphQLParser(private val buffer: String) : AbstractParser() {
-    private val whitespace = " \t\n\r"
+    private val whitespace =
+            listOf(
+                    '\t',    // Horizontal Tab
+                    '\n',    // New Line
+                    '\r',    // Carriage Return
+                    '\b',    // Back Space
+                    '\u000c' // Form Feed
+            ).joinToString("")
+
     private val numbers0to9 = (0..9).map { it.toString() }
     private val numbers1to9 = (1..9).map { it.toString() }
 
