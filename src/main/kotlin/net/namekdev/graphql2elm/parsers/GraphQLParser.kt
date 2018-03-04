@@ -230,12 +230,7 @@ class GraphQLParser(private val buffer: String) : AbstractParser() {
     })
 
     private fun value(): Value = block("Value", {
-        expectOneOf(
-                {STRING()},
-                {NUMBER()},
-                {BOOLEAN()},
-                {array()}
-        )
+        expectOneOf(::STRING, ::NUMBER, ::BOOLEAN, ::array, ::enumValue)
     })
 
     private fun variable(): Variable = block("Variable", {
@@ -275,6 +270,16 @@ class GraphQLParser(private val buffer: String) : AbstractParser() {
         expectAndGetWord("]")
 
         Array(list)
+    })
+
+    private fun enumValue(): EnumValue = block("EnumValue", {
+        val str = NAME()
+
+        if (str == "true" || str == "false"|| str == "null" ) {
+            throw parseBackTrack("true/false/null can't be an enum value")
+        }
+
+        EnumValue(str)
     })
 
     private fun STRING(): StringValue = block("StringValue", {
@@ -439,6 +444,7 @@ class GraphQLParser(private val buffer: String) : AbstractParser() {
     }
     class BooleanValue(val boolean: Boolean) : Value()
     class Array(val values: ArrayList<Value>) : Value()
+    class EnumValue(val value: String) : Value()
 
     class Variable(val name: String) : ValueOrVariable()
 
@@ -460,3 +466,4 @@ class GraphQLParser(private val buffer: String) : AbstractParser() {
         fun fields(): List<Field> = selections.mapNotNull { it as Field }
     }
 }
+
