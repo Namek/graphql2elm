@@ -1,0 +1,12 @@
+apply plugin: 'kotlin'
+
+dependencies {
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    compile project(':graphql2elm-jvm')
+}
+
+task run(dependsOn: classes, type: JavaExec) {
+    main = 'net.namekdev.graphql2elm.MainKt'
+    classpath = sourceSets.main.runtimeClasspath
+    ignoreExitValue(true)
+}

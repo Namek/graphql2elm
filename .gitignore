@@ -1,6 +1,7 @@
-/.idea/
-/*.iml
+.idea/
+*.iml
 /.gradle/
 build/
 /settings.gradle
 /gradle/
+out/

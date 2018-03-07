@@ -1,0 +1,18 @@
+apply plugin: 'kotlin-platform-jvm'
+
+archivesBaseName = 'graphql2elm-jvm'
+
+dependencies {
+    expectedBy project(':graphql2elm-core')
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    testCompile "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.kotlin
+}
+
+artifacts {
+    archives sourcesJar
+}

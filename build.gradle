@@ -1,6 +1,5 @@
 buildscript {
     ext.kotlin_version = '1.2.30'
-
     repositories {
         mavenCentral()
     }
@@ -9,16 +8,23 @@ buildscript {
     }
 }
 
-
-apply plugin: 'kotlin-platform-common'
-
-repositories {
-    mavenCentral()
-    jcenter()
+plugins {
+    id "com.eriwen.gradle.js" version "2.14.1"
 }
 
-dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-common:$kotlin_version"
-    testCompile "org.jetbrains.kotlin:kotlin-test-annotations-common:$kotlin_version"
-    testCompile "org.jetbrains.kotlin:kotlin-test-common:$kotlin_version"
+subprojects {
+    repositories {
+        mavenCentral()
+        jcenter()
+        maven { url "https://jitpack.io" }
+    }
+}
+
+allprojects {
+    group 'net.namekdev.graphql2elm'
+    version '0.1-SNAPSHOT'
+}
+
+ext {
+    web_output_dir = "${project.buildDir}/web"
 }
