@@ -15,16 +15,16 @@ Sample queries and schema are hardcoded but feature list consists of:
 
 ## Roadmap
 
-- field arguments
+- field arguments (WIP)
 - input variables
-- fragments - although [jamesmacaulay/elm-graphql](https://github.com/jamesmacaulay/elm-graphql) doesn't seem to support them
-- web site with configuration and front-end generator ([WIP](https://github.com/Namek/graphql2elm/tree/master/graphql2elm-web) - made with Elm)
+- fragments
+- web site with configuration and front-end generator ([WIP](https://github.com/Namek/graphql2elm/tree/master/graphql2elm-js) - made with Elm)
 
 
 ## Discussion
 
-The complete idea of this tool is yet undecided because there are 2 paths:
-1. a tool which is automatically launched within development pipeline which checks on query files and schema, then regenerates whole Elm modules (`.elm` files with code)
+The complete idea of this tool is yet undecided because there are 2 possible paths:
+1. a tool which is automatically launched within development pipeline which checks on query files and schema, then generates whole Elm modules (`.elm` files with code)
 2. a tool that generates something on web and doesn't have to produce compilable code, just as close as useful to final, for custom modification
 
 The path #1 feels like superior/superset to #2 but it may need more configuration and support more specific cases (?).
