@@ -1,13 +1,28 @@
-package net.namekdev.graphql2elm.js
+package net.namekdev.graphql2elm
 
-import net.namekdev.graphql2elm.CodeEmitterConfig
-import net.namekdev.graphql2elm.RegisteredType
-import net.namekdev.graphql2elm.emitElmQuery
 import net.namekdev.graphql2elm.parsers.GraphQLParser
 import net.namekdev.graphql2elm.parsers.mergeSchemaIntoQuery
 import net.namekdev.graphql2elm.parsers.parseSchemaJson
+import org.w3c.dom.get
+import kotlin.browser.document
+import kotlin.browser.window
 
-@JsName("generateElmCode")
+actual fun main(args: Array<String>) {
+    window.onload = {
+        val div = document.createElement("div")
+        document.body!!.appendChild(div)
+
+        val app = window["Elm"].Main.embed(div)
+
+        app.ports.generateElmCode.subscribe { params : Array<String> ->
+            val query= params[0]
+            val schema = params[1]
+            val res = generateElmCode(query, schema)
+            app.ports.elmCodeGenerationResult.send(res)
+        }
+    }
+}
+
 fun generateElmCode(query: String, schema: String): String {
     val parser = GraphQLParser(query)
     val typeSystem = parseSchemaJson(schema)

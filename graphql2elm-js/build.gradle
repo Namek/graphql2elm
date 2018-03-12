@@ -1,11 +1,14 @@
+import com.google.javascript.jscomp.CompilerOptions
+
 apply plugin: 'kotlin-platform-js'
+apply plugin: 'kotlin-dce-js'
+apply plugin: "com.eriwen.gradle.js"
 
 archivesBaseName = 'graphql2elm-js'
 
 dependencies {
     expectedBy project(':graphql2elm-core')
     compile "org.jetbrains.kotlin:kotlin-stdlib-js:$kotlin_version"
-//    testCompile libraries.kotlin_test_js
 }
 
 [compileKotlin2Js, compileTestKotlin2Js]*.configure {
@@ -14,11 +17,61 @@ dependencies {
     kotlinOptions.sourceMapEmbedSources = "always"
 }
 
-task sourcesJar(type: Jar) {
-    classifier = 'sources'
-    from sourceSets.main.kotlin
+runDceKotlinJs.keep "graphql2elm-js-web.net.namekdev.graphql2elm.js.generateElmCode"
+
+
+task compileElmUi(type: Exec) {
+    workingDir "${projectDir}/src/web"
+
+    // works on Windows only :(
+    commandLine 'cmd', '/c', "elm-make src/Main.elm --output \"${project.buildDir}/elm/ui.js\""
 }
 
-artifacts {
-    archives sourcesJar
+combineJs {
+    source = [
+            "${buildDir}/kotlin-js-min/main/kotlin.js",
+            "${buildDir}/kotlin-js-min/main/graphql2elm-js.js",
+    ]
+    dest = file("${temporaryDir}/logic.js")
+
+    dependsOn runDceKotlinJs
 }
+
+task minifyJsLogic(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
+    source = combineJs
+    dest = file("${temporaryDir}/logic.js")
+    closure {
+        compilerOptions = new CompilerOptions().with {
+            setLanguage(CompilerOptions.LanguageMode.ECMASCRIPT5)
+            return it
+        }
+    }
+
+    dependsOn combineJs
+}
+
+task minifyJsElmUi(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
+    source = file("${project.buildDir}/elm/ui.js")
+    dest = file("${temporaryDir}/ui.js")
+    closure {
+        compilerOptions = new CompilerOptions().with {
+            setLanguage(CompilerOptions.LanguageMode.ECMASCRIPT5)
+            return it
+        }
+    }
+
+    dependsOn compileElmUi
+}
+
+task assembleWeb(type: Sync, dependsOn: [classes, compileElmUi, combineJs]) {
+    from minifyJsLogic  //change it to `combineJs` if don't want to minify logic
+    from minifyJsElmUi
+
+    from ("${projectDir}/src/web") {
+        include 'index.html'
+    }
+
+    into "$web_output_dir"
+}
+
+assemble.dependsOn assembleWeb

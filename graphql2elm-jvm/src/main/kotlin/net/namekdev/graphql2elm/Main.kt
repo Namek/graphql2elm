@@ -5,7 +5,7 @@ import net.namekdev.graphql2elm.parsers.mergeSchemaIntoQuery
 import net.namekdev.graphql2elm.parsers.parseSchemaJson
 
 
-fun main(args: Array<String>) {
+actual fun main(args: Array<String>) {
     val str1 = """
     query {
       currentUser {
