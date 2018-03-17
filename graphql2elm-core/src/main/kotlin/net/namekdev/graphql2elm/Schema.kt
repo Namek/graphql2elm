@@ -210,6 +210,14 @@ class AArgument(
     fun asValue() = valueOrVariable!!.asValue()
 }
 
+class AVariable(
+        val name: String,
+        val type: AType,
+        val defaultValue: GraphQLParser.Value?
+) {
+    val isNullable: Boolean = defaultValue == null
+}
+
 
 enum class OpType {
     Query,
@@ -227,10 +235,10 @@ enum class OpType {
 
 class OperationDef(
         val opType: OpType,
-        val name: String?,
-        val fields: List<AField> = ArrayList()
+        val name: String,
+        val fields: List<AField>,
+        val variables: List<AVariable>
 ) {
-    //    var returnType: QType? = null // should be getter calculated from fields?
-    var inputType: AType? = null
-
+    fun inputTypeName() = name.capitalize() + "Input"
+    fun functionName() = name + "Query"
 }

@@ -4,8 +4,7 @@ import net.namekdev.graphql2elm.parsers.GraphQLParser
 
 fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     val emit = CodeEmitter(emitCfg)
-    val hasInput = op.inputType != null
-    val funcName = "someRequest"
+    val inputType = inferInputType(op)
     val (returnSelection, isReturnSelectionNullable) = inferReturnType(op)
     val (generatedTypes, allTypes) = traverseForNewTypes(op, returnSelection, emitCfg)
 
@@ -34,11 +33,7 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     emit.lineEmpty()
     emit.lineEmit("-}")
 
-    emit.lineBegin(funcName, " : ")
-
-    if (hasInput) {
-        // TODO: inputType "-> "
-    }
+    emit.lineBegin(op.functionName(), " : ")
 
     val returnTypeAsStr = {
         val sb = StringBuilder()
@@ -64,16 +59,54 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             sb.append(")")
 
         sb.toString()
+    }()
+
+    if (inputType == null) {
+        emit.lineContinue("Request ", op.opType.name, " ", returnTypeAsStr)
+    }
+    else {
+        emit.lineContinue("Document ", op.opType.name, " ", returnTypeAsStr, " ", op.inputTypeName())
     }
 
-    emit.lineEnd("Request ", op.opType.name, " ", returnTypeAsStr())
-    emit.lineBegin(funcName)
-
-    if (hasInput) {
-        emit.lineContinue(" input")
-    }
-
+    emit.lineBegin(op.functionName())
     emit.lineEnd(" =")
+
+    // define variables
+    if (op.variables.isNotEmpty()) {
+        emit.lineEmit("let")
+        emit.indentForward()
+
+        op.variables.forEachIndexed { i, v ->
+            emit.lineEmit("var", v.name.capitalize(), " =")
+            emit.indentForward()
+
+            emit.lineBegin("Var.", if (v.isNullable) "optional " else "required ")
+            emit.lineContinue("\"${v.name}\" .${v.name} Var.")
+
+            val funcName = when (v.type) {
+                is TScalar -> {
+                    when (v.type.name) {
+                        "String" -> "string"
+                        "Int" -> "int"
+                        "Float" -> "float"
+                        "Boolean" -> "bool"
+                        else -> throw Exception("well")
+                    }
+                }
+                else -> throw Exception("variable of unsupported type?")
+            }
+            emit.lineEnd(funcName)
+
+            emit.indentBackward()
+
+            if (i < op.variables.size-1) {
+                emit.lineEmpty()
+            }
+        }
+
+        emit.indentBackward()
+        emit.lineEmit("in")
+    }
 
 
     fun appendDecoder(fields: List<AField>, chainWithForObject: Boolean = false) {
@@ -128,9 +161,7 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 
                     if (arg.valueOrVariable!!.isVariable()) {
                         val varName = arg.valueOrVariable.varName()
-                        emit.lineContinue("variable ", varName)
-
-                        throw UnsupportedOperationException("TODO: variables are not yet implemented")
+                        emit.lineContinue("variable var", varName.capitalize())
                     }
                     else {
                         // const value
@@ -292,14 +323,7 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 
     emit.indentForward()
     emit.lineEmit("|> queryDocument")
-    emit.lineBegin("|> request ")
-
-    if (hasInput)
-        emit.lineContinue("input")
-    else
-        emit.lineContinue("{}")
-
-    emit.lineEnd()
+    emit.lineEmit("|> request ")
     emit.indentReset()
 
 
@@ -339,6 +363,27 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
         emit.indentBackward()
     }
 
+    // type alias for input (variables)
+    if (inputType != null) {
+        emit.lineEmpty()
+        emit.lineEmpty()
+        emit.lineEmit("type alias ", op.inputTypeName(), " vars = ")
+        emit.indentForward()
+        emit.lineEmit("{ vars")
+        emit.indentForward()
+
+        var isFirstField = true
+        for (field in inputType.fields) {
+            emit.lineBegin(if (isFirstField) "|" else ",")
+            emit.lineEnd(" ${field.name} : ${field.stringifyType(generatedTypes, emit.cfg)}")
+
+            isFirstField = false
+        }
+        emit.indentBackward()
+        emit.lineEmit("}")
+        emit.indentBackward()
+    }
+
     generatedTypes
             .forEach {
                 emit.lineEmpty()
@@ -350,7 +395,30 @@ fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 }
 
 fun emitGraphQL(op: OperationDef, emit: CodeEmitter) {
-    emit.lineEmit(op.opType.name.toLowerCase(), " {")
+    emit.lineBegin(op.opType.name.toLowerCase())
+
+    if (op.variables.isNotEmpty()) {
+        emit.lineContinue("(")
+        op.variables.forEachIndexed { i, v ->
+            emit.lineContinue("\$${v.name}: ${v.type.name}")
+
+            if (!v.isNullable) {
+                emit.lineContinue("!")
+            }
+
+            if (v.defaultValue != null) {
+                emit.lineContinue(" = ", emitElmValue(v.defaultValue))
+            }
+
+            if (i < op.variables.size-1) {
+                emit.lineContinue(", ")
+            }
+        }
+
+        emit.lineContinue(")")
+    }
+
+    emit.lineEnd(" {")
 
     fun rec(fields: List<AField>) {
         emit.indentForward(2)
@@ -359,6 +427,26 @@ fun emitGraphQL(op: OperationDef, emit: CodeEmitter) {
 
             if (emit.cfg.representNullableInEmittedGraphQLComment && field.isNullable)
                 emit.lineContinue("?")
+
+            if (field.arguments.isNotEmpty()) {
+                emit.lineContinue("(")
+                field.arguments.forEachIndexed { i, arg ->
+                    emit.lineContinue("${arg.name}: ")
+                    when (arg.valueOrVariable) {
+                        is GraphQLParser.Value -> {
+                            emitElmValue(arg.valueOrVariable)
+                        }
+                        is GraphQLParser.Variable -> {
+                            emit.lineContinue("\$${arg.valueOrVariable.name}")
+                        }
+                    }
+
+                    if (i < field.arguments.size-1) {
+                        emit.lineContinue(", ")
+                    }
+                }
+                emit.lineContinue(")")
+            }
 
             val fieldType = field.type
 

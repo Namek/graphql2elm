@@ -34,6 +34,19 @@ fun inferReturnType(op: OperationDef): Pair<AField, Boolean> {
     return Pair(cur!!, foundAnyNullable)
 }
 
+fun inferInputType(op: OperationDef): TObject? {
+    if (op.variables.isEmpty())
+        return null
+
+    val fields = op.variables
+            .map { v ->
+                AField(v.name, v.type, v.isNullable, listOf())
+            }
+            .toTypedArray()
+
+    return TObject(op.name.capitalize() + "Input", arrayListOf(elements = *fields))
+}
+
 fun traverseForNewTypes(op: OperationDef, root: AField, emitCfg: CodeEmitterConfig): Pair<List<ANonGenericType>, Set<ANonGenericType>> {
     val newTypes = mutableSetOf<ANonGenericType>()
     val allTypes = mutableSetOf<ANonGenericType>()

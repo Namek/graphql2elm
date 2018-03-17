@@ -72,14 +72,25 @@ actual fun main(args: Array<String>) {
     """
 
     val str4 = """
-    mutation {
-      addTransaction(amount: 100) {
+    mutation(${'$'}theAmount: Float) {
+      addTransaction(amount: ${'$'}theAmount) {
         id
       }
     }
     """
 
-    val elmCode = generateElmCode(query = str1, schema = queryForSchema())
+
+    // this should error: unknown variable name "thAmount"
+    val str5 = """
+    mutation(${'$'}theAmount: Float) {
+      addTransaction(amount: ${'$'}thAmount) {
+        id
+      }
+    }
+    """
+
+
+    val elmCode = generateElmCode(query = str4, schema = queryForSchema())
     print(elmCode)
 }
 

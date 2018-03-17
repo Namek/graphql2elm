@@ -186,7 +186,7 @@ fun mergeSchemaIntoQuery(doc: GraphQLParser.Document, schema: Schema): SelectedF
                                         if (fieldType.innerType is TObject) {
                                             val subfields = traverseFields(fieldCtx.selectionSet, opType, path + fieldName)
 
-                                            val objType = fieldType.innerType as TObject
+                                            val objType = fieldType.innerType
                                             val newObjType = objType.specialize(subfields)
 
                                             TList(newObjType, fieldType.allowNulls)
@@ -218,9 +218,17 @@ fun mergeSchemaIntoQuery(doc: GraphQLParser.Document, schema: Schema): SelectedF
             .map { opDef ->
                 val opType = OpType.guess(opDef.operationType)
                 val opFields = traverseFields(opDef.selectionSet, opType, listOf<String>())
-                OperationDef(opType, opDef.name, opFields)
+
+                val variables = (opDef.variableDefinitions?.definitions ?: listOf()).map {
+                    val type = schema[it.type.typeName]!!
+                    AVariable(it.variable.name, type, it.defaultValue)
+                }
+
+                OperationDef(opType, opDef.name ?: "someRequest", opFields, variables)
             }
             .toList()
 
     return SelectedFieldOutput(schema, ops)
 }
+
+
