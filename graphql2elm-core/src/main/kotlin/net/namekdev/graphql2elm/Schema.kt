@@ -241,4 +241,8 @@ class OperationDef(
 ) {
     fun inputTypeName() = name.capitalize() + "Input"
     fun functionName() = name + "Query"
+
+    fun hasAnyUsageOfArguments(): Boolean =
+        hasAnyUsageOfArguments(fields)
 }
+

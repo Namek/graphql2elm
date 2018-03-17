@@ -141,3 +141,19 @@ fun traverseForNewTypes(op: OperationDef, root: AField, emitCfg: CodeEmitterConf
     return Pair(generatedTypes, allTypes)
 }
 
+fun hasAnyUsageOfArguments(fields: List<AField>): Boolean {
+    return fields.any { f->
+        if (f.arguments.isNotEmpty())
+            true
+        else {
+            if (f.type is TObject) {
+                hasAnyUsageOfArguments(f.type.fields)
+            }
+            else if (f.type is TList && f.type.innerType is TObject) {
+                hasAnyUsageOfArguments(f.type.innerType.fields)
+            }
+            else
+                false
+        }
+    }
+}

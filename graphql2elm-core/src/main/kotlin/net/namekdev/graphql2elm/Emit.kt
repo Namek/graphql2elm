@@ -2,13 +2,19 @@ package net.namekdev.graphql2elm
 
 import net.namekdev.graphql2elm.parsers.GraphQLParser
 
-fun emitElmQuery(op: OperationDef, emitCfg: CodeEmitterConfig): String {
+fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     val emit = CodeEmitter(emitCfg)
     val inputType = inferInputType(op)
     val (returnSelection, isReturnSelectionNullable) = inferReturnType(op)
     val (generatedTypes, allTypes) = traverseForNewTypes(op, returnSelection, emitCfg)
 
     emit.lineEmit("import GraphQL.Request.Builder exposing (..)")
+
+    if (op.hasAnyUsageOfArguments())
+        emit.lineEmit("import GraphQL.Request.Builder.Arg as Arg")
+
+    if (inputType != null)
+        emit.lineEmit("import GraphQL.Request.Builder.Var as var")
 
     allTypes
             .groupBy { it.name }

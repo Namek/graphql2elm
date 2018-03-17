@@ -40,7 +40,7 @@ fun generateElmCode(query: String, schema: String): String {
             knownTypes,
             backendTypesMap
     )
-    val elmCode = emitElmQuery(output.operations[0], emitterConfig)
+    val elmCode = emitElmCode(output.operations[0], emitterConfig)
 
     return elmCode
 }
