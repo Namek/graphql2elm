@@ -1,42 +1,51 @@
 package net.namekdev.graphql2elm.parsers
 
-class GraphQLParser(private val buffer: String) : AbstractParser() {
-    private val whitespace =
-            listOf(
-                    '\t',    // Horizontal Tab
-                    '\n',    // New Line
-                    '\r',    // Carriage Return
-                    '\b',    // Back Space
-                    '\u000c',// Form Feed
-                    ' '      // Space
-            ).joinToString("")
+private val whitespace =
+        listOf(
+                '\t',    // Horizontal Tab
+                '\n',    // New Line
+                '\r',    // Carriage Return
+                '\b',    // Back Space
+                '\u000c',// Form Feed
+                ' '      // Space
+        ).joinToString("")
 
-    private val numbers0to9 = (0..9).map { it.toString() }
-    private val numbers1to9 = (1..9).map { it.toString() }
+private val numbers0to9 = (0..9).map { it.toString() }
+private val numbers1to9 = (1..9).map { it.toString() }
+
+
+class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
+    private val variableRefs = mutableListOf<Variable>()
+
 
     fun parse(): Document? {
+        val errors = mutableListOf<String>()
+
         try {
-            return document()
+            val doc = document()
+
+//            val fragmentTypeNames = doc.definitions
+//                    .mapNotNull { it as FragmentDefinition }
+//                    .map { it.fragmentName }
+
+
+            // referenced variables should be defined previously
+            doc.definitions
+                    .mapNotNull { it as OperationDefinition }
+                    .forEach {
+                        it.variableDefinitions?.definitions?.forEach {
+                            val varName = it.variable.name
+                            if (!variableRefs.any { it.name == varName }) {
+                                errors.add("unknown variable name: $varName")
+                            }
+                        }
+                    }
+
+
+            return doc
         } catch (exc: Throwable) {
             return null
         }
-    }
-
-    override fun fetchCharacter(): Char {
-        return buffer[pos++]
-    }
-
-    override fun isNextCharacterMeaningful(): Boolean {
-        val ch = buffer[pos]
-        return !whitespace.contains(ch)
-    }
-
-    override fun fetchString(start: Int, end: Int): String {
-        return buffer.substring(start, end)
-    }
-
-    override fun debugPos(): String {
-        return buffer.substring(0, pos) + "|" + buffer.substring(pos)
     }
 
     private fun document(): Document = block("document", {
@@ -228,7 +237,13 @@ class GraphQLParser(private val buffer: String) : AbstractParser() {
     })
 
     private fun valueOrVariable(): ValueOrVariable = block("ValueOrVariable", {
-        expectOneOf(::value, ::variable)
+        val valOrVar = expectOneOf(::value, ::variable)
+
+        if (valOrVar is Variable) {
+            variableRefs.add(valOrVar)
+        }
+
+        valOrVar
     })
 
     private fun value(): Value = block("Value", {

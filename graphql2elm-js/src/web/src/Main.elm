@@ -1,20 +1,26 @@
 module Main exposing (..)
 
+import Data.Settings as Settings exposing (Settings)
 import Html exposing (..)
 import Html.Attributes as Attr exposing (style, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Json.Decode as Decode exposing (Value)
 import Misc exposing (..)
 import Ports exposing (elmCodeGenerationResult, generateElmCode)
 
 
-main : Program Never Model Msg
+main : Program Value Model Msg
 main =
-    Html.program
+    Html.programWithFlags
         { init = init
         , view = view
         , update = update
         , subscriptions = subscriptions
         }
+
+
+type alias MainFlags =
+    Maybe { query : String, schema : String }
 
 
 
@@ -31,20 +37,18 @@ subscriptions model =
 
 
 type alias Model =
-    { representNullableInEmittedGraphQLComment : Bool
-    , emitMaybeForNullables : Bool
-    , typePrefix : String
-    , schema : String
-    , query : String
+    { settings : Settings
     , elmCode : Maybe String
     }
 
 
-init : ( Model, Cmd Msg )
-init =
+init : Value -> ( Model, Cmd Msg )
+init json =
     let
         model =
-            Model True True "Q" "" "" Nothing
+            { settings = json |> Settings.decodeFromJson
+            , elmCode = Nothing
+            }
     in
     ( model, Cmd.none )
 
@@ -65,24 +69,28 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        { settings } =
+            model
+    in
     case msg of
         ToggleNullableInComment ->
-            { model | representNullableInEmittedGraphQLComment = not model.representNullableInEmittedGraphQLComment } => Cmd.none
+            { model | settings = { settings | representNullableInEmittedGraphQLComment = not settings.representNullableInEmittedGraphQLComment } } => Cmd.none
 
         ToggleEmitMaybeForNullableFields ->
-            { model | emitMaybeForNullables = not model.emitMaybeForNullables } => Cmd.none
+            { model | settings = { settings | emitMaybeForNullables = not settings.emitMaybeForNullables } } => Cmd.none
 
         ChangeTypePrefix prefix ->
-            { model | typePrefix = prefix } => Cmd.none
+            { model | settings = { settings | typePrefix = prefix } } => Cmd.none
 
         SetSchema schema ->
-            { model | schema = schema } => Cmd.none
+            { model | settings = { settings | schema = schema } } => Cmd.none
 
         SetQuery query ->
-            { model | query = query } => Cmd.none
+            { model | settings = { settings | query = query } } => Cmd.none
 
         GenerateElmCode ->
-            model => generateElmCode ( model.query, model.schema )
+            model => generateElmCode (settings |> Settings.encode)
 
         ElmCodeGenerationResult res ->
             { model | elmCode = res }
@@ -95,29 +103,33 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
+    let
+        { settings } =
+            model
+    in
     div [ style [ "padding-left" => "20px" ] ]
         [ div []
-            [ viewTextarea "Schema" SetSchema
-            , viewTextarea "Query" SetQuery
+            [ viewTextarea "Schema" settings.schema SetSchema
+            , viewTextarea "Query" settings.query SetQuery
             ]
         , div []
             [ checkbox
                 ToggleNullableInComment
                 "Represent nullable in comment with generated GraphQL query"
-                model.representNullableInEmittedGraphQLComment
+                settings.representNullableInEmittedGraphQLComment
             ]
         , div []
             [ checkbox
                 ToggleEmitMaybeForNullableFields
                 "Emit Maybe for nullable fields"
-                model.emitMaybeForNullables
+                settings.emitMaybeForNullables
             ]
         , label []
             [ text "Generated type prefix:"
             , input
                 [ type_ "text"
                 , onInput ChangeTypePrefix
-                , value model.typePrefix
+                , value settings.typePrefix
                 , style [ "width" => "30px", "margin-left" => "10px" ]
                 ]
                 []
@@ -140,9 +152,9 @@ checkbox msg name isChecked =
         ]
 
 
-viewTextarea : String -> (String -> msg) -> Html msg
-viewTextarea headerText msg =
+viewTextarea : String -> String -> (String -> msg) -> Html msg
+viewTextarea headerText val msg =
     div [ style [ "display" => "inline-block" ] ]
         [ h1 [] [ text headerText ]
-        , textarea [ onInput msg, Attr.cols 50, Attr.rows 20 ] []
+        , textarea [ onInput msg, Attr.cols 50, Attr.rows 20, value val ] []
         ]

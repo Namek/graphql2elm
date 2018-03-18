@@ -1,29 +1,12 @@
 package net.namekdev.graphql2elm.parsers
 
-class JsonParser(private val buffer: String) : AbstractParser() {
-    private val whitespace = " \t\n\r"
-    private val numbers0to9 = (0..9).map { it.toString() }
-    private val numbers1to9 = (1..9).map { it.toString() }
-    private val SAFECODEPOINT = listOf('\"', '\\') + ('\u0000'..'\u001F')
 
+private val whitespace = " \t\n\r"
+private val numbers0to9 = (0..9).map { it.toString() }
+private val numbers1to9 = (1..9).map { it.toString() }
+private val SAFECODEPOINT = listOf('\"', '\\') + ('\u0000'..'\u001F')
 
-    override fun fetchCharacter(): Char {
-        return buffer[pos++]
-    }
-
-    override fun isNextCharacterMeaningful(): Boolean {
-        val ch = buffer[pos]
-        return !whitespace.contains(ch)
-    }
-
-    override fun fetchString(start: Int, end: Int): String {
-        return buffer.substring(start, end)
-    }
-
-    override fun debugPos(): String {
-        return buffer.substring(0, pos) + "|" + buffer.substring(pos) //To change body of created functions use File | Settings | File Templates.
-    }
-
+class JsonParser(buffer: String) : AbstractParser(buffer, whitespace) {
     fun parse(): Value {
         return value()
     }
@@ -53,7 +36,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         ValueObject(pairs)
     })
 
-    private fun pair(): ObjPair = block("Pair", {
+    private inline fun pair(): ObjPair = block("Pair", {
         val key = STRING().string
         expectWord(":")
         val value = value()
@@ -79,7 +62,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         ValueArray(values)
     })
 
-    private fun STRING(): ValueString = block("ValueString", {
+    private inline fun STRING(): ValueString = block("ValueString", {
         // '"' ( ESC | ~ SAFECODEPOINT )* '"'
 
         expectWord("\"")
@@ -96,7 +79,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         ValueString(chars.joinToString(""))
     })
 
-    private fun ESC(): String = block("ESC: String", {
+    private inline fun ESC(): String = block("ESC: String", {
         expectAndGet('\\')
 
         val escaped = expectOneOf(
@@ -109,15 +92,15 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         '\\' + escaped
     })
 
-    private fun UNICODE(): String = block("UNICODE: String", {
+    private inline fun UNICODE(): String = block("UNICODE: String", {
         "" + expectAndGet('u') + HEX() + HEX() + HEX() + HEX()
     })
 
-    private fun HEX(): Char = block("HEX: Char", {
+    private inline fun HEX(): Char = block("HEX: Char", {
         expectAndGet { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
     })
 
-    private fun NUMBER(): ValueNumber = block("ValueNumber", {
+    private inline fun NUMBER(): ValueNumber = block("ValueNumber", {
         // '-'? INT
         val minus = maybe { expectWord("-") } == true
         val integralPart = INT()
@@ -143,7 +126,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         }
     })
 
-    private fun INT(): Int = block("INT", {
+    private inline fun INT(): Int = block("INT", {
         if (maybe({ expectWord("0") }) == true) {
             0
         }
@@ -156,7 +139,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         }
     })
 
-    private fun EXP(): Int = block("EXP", {
+    private inline fun EXP(): Int = block("EXP", {
         expectAndGetAnyOfWords(listOf("e", "E"))
         val signStr = maybe { expectAndGetAnyOfWords(listOf("+", "-")) }
         val sign = if (signStr == "-") -1 else 1
@@ -164,7 +147,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         sign * INT()
     })
 
-    private fun BOOLEAN(): ValueBoolean = block("ValueBoolean", {
+    private inline fun BOOLEAN(): ValueBoolean = block("ValueBoolean", {
         expectOneOf(
                 {
                     if (expectWord("true"))
@@ -181,7 +164,7 @@ class JsonParser(private val buffer: String) : AbstractParser() {
         )
     })
 
-    private fun NULL(): ValueNull = block("ValueNull", {
+    private inline fun NULL(): ValueNull = block("ValueNull", {
         expectWord("null")
         ValueNull()
     })

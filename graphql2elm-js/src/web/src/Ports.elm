@@ -1,7 +1,9 @@
 port module Ports exposing (..)
 
+import Json.Encode exposing (Value)
 
-port generateElmCode : ( String, String ) -> Cmd msg
+
+port generateElmCode : Value -> Cmd msg
 
 
 port elmCodeGenerationResult : (Maybe String -> msg) -> Sub msg

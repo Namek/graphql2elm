@@ -64,7 +64,8 @@ task minifyJsElmUi(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
 }
 
 task assembleWeb(type: Sync, dependsOn: [classes, compileElmUi, combineJs]) {
-    from minifyJsLogic  //change it to `combineJs` if don't want to minify logic
+//    from minifyJsLogic   //change it to `combineJs` if don't want to minify logic
+    from combineJs
     from minifyJsElmUi
 
     from ("${projectDir}/src/web") {

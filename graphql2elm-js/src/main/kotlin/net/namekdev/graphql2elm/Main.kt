@@ -5,6 +5,7 @@ import net.namekdev.graphql2elm.parsers.mergeSchemaIntoQuery
 import net.namekdev.graphql2elm.parsers.parseSchemaJson
 import org.w3c.dom.get
 import kotlin.browser.document
+import kotlin.browser.localStorage
 import kotlin.browser.window
 
 actual fun main(args: Array<String>) {
@@ -12,13 +13,25 @@ actual fun main(args: Array<String>) {
         val div = document.createElement("div")
         document.body!!.appendChild(div)
 
-        val app = window["Elm"].Main.embed(div)
+        val app = window["Elm"].Main.embed(
+                div,
+                JSON.parse(localStorage.getItem("settings") ?: "{}")
+        )
 
-        app.ports.generateElmCode.subscribe { params : Array<String> ->
-            val query= params[0]
-            val schema = params[1]
-            val res = generateElmCode(query, schema)
-            app.ports.elmCodeGenerationResult.send(res)
+        app.ports.generateElmCode.subscribe { settings ->
+            val s = settings
+
+            try {
+                localStorage.setItem("settings", JSON.stringify(s))
+
+                val res = generateElmCode(s.query, s.schema)
+                app.ports.elmCodeGenerationResult.send(res)
+            }
+            catch (exc: Exception) {
+                // TODO inform about errors
+            }
+
+            0
         }
     }
 }
