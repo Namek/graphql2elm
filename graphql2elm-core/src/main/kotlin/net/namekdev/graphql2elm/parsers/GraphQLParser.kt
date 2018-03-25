@@ -8,10 +8,11 @@ private val whitespace =
                 '\b',    // Back Space
                 '\u000c',// Form Feed
                 ' '      // Space
-        ).joinToString("")
+        )
 
-private val numbers0to9 = (0..9).map { it.toString() }
-private val numbers1to9 = (1..9).map { it.toString() }
+private val numbers0to9 = (0..9).map { it.toChar() }
+private val numbers1to9 = (1..9).map { it.toChar() }
+private val exponentialPartPrefixes = listOf('e', 'E')
 
 
 class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
@@ -61,9 +62,9 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 {
                     OperationDefinition(
                             operationType(),
-                            maybe { -> NAME() },
-                            maybe { -> variableDefinitions() },
-                            maybe { -> directives() },
+                            maybe{ NAME() },
+                            maybe(::variableDefinitions),
+                            maybe(::directives),
                             selectionSet()
                     )
                 },
@@ -81,66 +82,72 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
 
     private fun directives(): Directives =
             block("Directives", {
-                Directives(multipleMaybes { directive() })
+                Directives(multipleMaybes(::directive, 1))
             })
 
 
-    private fun directive(): Directive =
-    // '@' NAME ':' valueOrVariable | '@' NAME | '@' NAME '(' argument ')'
-            block("Directive", {
-                expectWord("@")
-                val name = NAME()
+    private fun directive(): Directive = block("Directive", {
+        // '@' NAME ':' valueOrVariable | '@' NAME | '@' NAME '(' argument ')'
 
-                expectOneOf(
-                        {
-                            expectWord(":")
-                            Directive(name, valueOrVariable())
-                        },
-                        {
-                            expectWord("(")
-                            val arg = argument()
-                            expectWord(")")
+        expectMeaningfulCharacter('@')
+        val name = NAME(true)
 
-                            Directive(name, argument = arg)
-                        },
-                        { Directive(name) }
-                )
-            })
+        val ch = fetchMeaningfulCharacter()
+
+        if (ch == ':') {
+            Directive(name, valueOrVariable())
+        }
+        else if (ch == '(') {
+            val arg = argument()
+            expectMeaningfulCharacter(')')
+
+            Directive(name, argument = arg)
+        }
+        else {
+            pos--
+            Directive(name)
+        }
+    })
 
     private fun variableDefinitions(): VariableDefinitions = block("VariableDefinitions", {
-        expectWord("(")
+        expectMeaningfulCharacter('(')
 
         val firstDef = variableDefinition()
-        val restDefs = multipleMaybes {
-            expectWord(",")
+        val restDefs = multipleMaybes({
+            expectMeaningfulCharacter(',')
             variableDefinition()
-        }
+        })
 
-        expectWord(")")
+        expectMeaningfulCharacter(')')
 
         VariableDefinitions(listOf(firstDef) + restDefs)
     })
 
     private fun variableDefinition(): VariableDefinition = block("VariableDefinition", {
         val varr = variable()
-        expectWord(":")
+        expectMeaningfulCharacter(':')
         val t = type()
-        val defaultValue = maybe { defaultValue() }
+        val defaultValue = maybe(::defaultValue)
 
         VariableDefinition(varr, t, defaultValue)
     })
 
     private fun defaultValue(): Value = block("defaultValue: Value", {
-        expectWord("=")
+        expectMeaningfulCharacter('=')
         value()
     })
 
-    private fun NAME(): String {
+    private fun NAME(immediateNeighbour: Boolean = false): String {
         // regex: """[_A-Za-z][_0-9A-Za-z]*"""
 
         pushPos()
         var str = ""
-        var ch = fetchMeaningfulCharacter()
+        var ch =
+                if (immediateNeighbour)
+                    fetchCharacter()
+                else
+                    fetchMeaningfulCharacter()
+
         if (ch == '_' || ch in 'a'..'z' || ch in 'A'..'Z') {
             str += ch
 
@@ -154,7 +161,7 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 }
                 else {
                     popSavePos()
-                    break;
+                    break
                 }
             }
 
@@ -168,23 +175,30 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     }
 
     private fun operationType(): String = block("OperationType: 'query' or 'mutation'", {
-        expectOneOf<String>(
-                { expectAndGetWord("query") },
-                { expectAndGetWord("mutation") }
-        )
+        expectAnyOfWords(listOf("query", "mutation"))
     })
 
     private fun selectionSet(): SelectionSet = block("SelectionSet", {
-        expectWord("{")
+        expectMeaningfulCharacter('{')
 
         val list = arrayListOf(selection())
 
-        list += multipleMaybes {
-            maybe { expectWord(",") }
-            selection()
-        }
+        while (true) {
+            val ch = fetchMeaningfulCharacter()
 
-        expectWord("}")
+            if (ch == ',') {
+                // there may be more commas that should be ignored
+                continue
+            }
+            else if (ch == '}') {
+                break
+            }
+            else {
+                // suppose there was whitespace so we moved 1 byte too far
+                --pos
+                list += selection()
+            }
+        }
 
         SelectionSet(list)
     })
@@ -196,9 +210,9 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     private fun field(): Field = block("Field", {
         Field(
                 fieldName(),
-                maybe { arguments() },
-                maybe { directives() },
-                maybe { selectionSet() }
+                maybe(::arguments),
+                maybe(::directives),
+                maybe(::selectionSet)
         )
     })
 
@@ -211,28 +225,26 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
 
     private fun alias(): FieldName = block("Alias: FieldName", {
         val name = NAME()
-        expectWord(":")
+        expectMeaningfulCharacter(':')
         val alias = NAME()
         FieldName(name, alias)
     })
 
     private fun arguments(): List<Argument> = block("expected argument list", {
-        expectWord("(")
-        val firstArg = argument()
+        expectMeaningfulCharacter('(')
+        val list = mutableListOf(argument())
 
-        val list = multipleMaybes<Argument> {
-            expectWord(",")
-            argument()
+        while (followsMeaningfulCharacter(',')) {
+            list += argument()
         }
 
-        expectWord(")")
-
-        listOf(firstArg) + list
+        expectMeaningfulCharacter(')')
+        list
     })
 
     private fun argument(): Argument = block("expected argument", {
         val name = NAME()
-        expectAndGetWord(":")
+        expectMeaningfulCharacter(':')
         Argument(name, valueOrVariable())
     })
 
@@ -251,8 +263,8 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     })
 
     private fun variable(): Variable = block("Variable", {
-        expectWord("$")
-        Variable(NAME())
+        expectMeaningfulCharacter('$')
+        Variable(NAME(true))
     })
 
     private fun type(): Type = block("Type", {
@@ -260,33 +272,55 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 {
                     Type(
                             typeName(),
-                            maybe { expectWord("!") } == true,
+                            followsCharacter('!'),
                             false
                     )
                 },
                 {
                     listType()
-                }
-        )
+                })
     })
 
     private fun typeName(): String =
             NAME()
 
     private fun listType(): Type = block("ListType", {
-        expectWord("[")
+        expectMeaningfulCharacter('[')
         val t = type()
-        expectWord("]")
+        expectMeaningfulCharacter(']')
         Type(t.typeName, t.isNonNullType, true)
     })
 
     private fun array(): Array = block("Array", {
-        expectAndGetWord("[")
-        val list = arrayListOf<Value>(value())
-        list += multipleMaybes { value() }
-        expectAndGetWord("]")
+        expectMeaningfulCharacter('[')
 
-        Array(list)
+        val values = mutableListOf<Value>()
+        val firstVal = maybe(::value)
+        if (firstVal != null) {
+            values.add(firstVal)
+
+            while (true) {
+                val ch = fetchMeaningfulCharacter()
+
+                if (ch == ',') {
+                    // there may be more commas that should be ignored
+                    continue
+                }
+                else if (ch == ']') {
+                    break
+                }
+                else {
+                    // suppose there was whitespace so we moved 1 byte too far
+                    --pos
+                    values.add(value())
+                }
+            }
+        }
+        else {
+            expectMeaningfulCharacter(']')
+        }
+
+        Array(values)
     })
 
     private fun enumValue(): EnumValue = block("EnumValue", {
@@ -300,93 +334,89 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     })
 
     private fun STRING(): StringValue = block("StringValue", {
-        // '"' ( ESC | ~ ["\\] )* '"'
+        expectMeaningfulCharacter('"')
 
-        expectWord("\"")
+        val startPos = pos
+        val avoidPoints = mutableListOf<Int>()
 
-        val chars = multipleMaybes {
-            expectOneOf(
-                    { ESC() },
-                    { expectNeitherOf(listOf('\"', '\\')) }
-            )
+        while (pos < buffer.length) {
+            val ch = buffer[pos++]
+
+            if (ch == '"') {
+                break
+            }
+
+            //escaping
+            if (ch == '\\') {
+                val esc = buffer[pos]
+
+                if (esc == '"' || esc == '\\' || esc == '/' || esc == 'b' || esc == 'f' || esc == 'n' || esc == 'r' || esc == 't') {
+                    avoidPoints.add(pos++)
+                }
+                else if (esc == 'u') {
+                    // unicode
+                    block("escaped unicode", {
+                        for (i in 1..4) {
+                            expectAndGet { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
+                        }
+                    })
+                }
+                else {
+                    throw parseError("unknown char escape: '\\$esc'")
+                }
+            }
+            else if (ch in '\u0000'..'\u001F') {
+                throw parseError("illegal unicode in string: '$ch'")
+            }
         }
 
-        expectWord("\"")
+        if (pos >= buffer.length-1) {
+            throw parseError("string finished before meeting closing '\"'")
+        }
 
-        StringValue(chars.joinToString(""))
-    })
-
-    private fun ESC(): String = block("ESC: String", {
-        expectAndGet('\\')
-
-        val escaped = expectOneOf(
-                {expectAndGet {
-                    it == '"' || it == '\\' || it == '/' || it == 'b' || it == 'f' || it == 'n' || it == 'r' || it == 't'
-                }.toString() },
-                {UNICODE()}
-        )
-
-        '\\' + escaped
-    })
-
-    private fun UNICODE(): String = block("UNICODE: String", {
-        "" + expectAndGet('u') + HEX() + HEX() + HEX() + HEX()
-    })
-
-    private fun HEX(): Char = block("HEX: Char", {
-        expectAndGet { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
+        StringValue(startPos, pos - 1, avoidPoints)
     })
 
     private fun BOOLEAN(): BooleanValue = block("BooleanValue", {
         expectOneOf(
                 {
-                    if (expectWord("true"))
-                        BooleanValue(true)
-                    else
-                        throw parseBackTrack()
+                    expectWord("true")
+                    BooleanValue(true)
                 },
                 {
-                    if (expectWord("false"))
-                        BooleanValue(false)
-                    else
-                        throw parseBackTrack()
+                    expectWord("false")
+                    BooleanValue(false)
                 }
         )
     })
 
     private fun NUMBER(): NumberValue = block("NumberValue", {
         // '-'? INT
-        val minus = maybe { expectWord("-") } == true
-        val integralPart = INT()
+        val minus = followsCharacter('-')
+        val integralPart = INT(true)
 
-        maybe {
-            expectOneOf(
-                    {
-                        // '.' [0-9]+ EXP?
-                        expectWord(".")
-                        val firstDigit = expectAndGetAnyOfWords(numbers0to9)
-                        val restDigits = multipleMaybes { expectAndGetAnyOfWords(numbers0to9) }
-                        val fractionalPart = (firstDigit + restDigits).toInt()
-                        NumberValue(minus, integralPart, fractionalPart, maybe { EXP() }, getCurrentBlockAsString("NumberValue").trim())
-                    },
-                    {
-                        // EXP
-                        NumberValue(minus, integralPart, 0, EXP(), getCurrentBlockAsString("NumberValue").trim())
-                    },
-                    {
-                        NumberValue(minus, integralPart, 0, null, getCurrentBlockAsString("NumberValue").trim())
-                    }
-            )
-        }
+        expectOneOf(
+                {
+                    // '.' [0-9]+ EXP?
+                    expectCharacter('.')
+                    val firstDigit = expectAnyCharacterOf(numbers0to9, true)
+                    val restDigits = multipleMaybes({ expectAnyCharacterOf(numbers0to9, true) })
+                    val fractionalPart = (firstDigit + restDigits.joinToString("")).toInt()
+                    NumberValue(minus, integralPart, fractionalPart, maybe(::EXP), getCurrentBlockAsString("ValueNumber").trim())
+                },
+                {
+                    // EXP?
+                    NumberValue(minus, integralPart, 0, maybe(::EXP), getCurrentBlockAsString("ValueNumber").trim())
+                })
     })
 
-    private fun INT(): Int = block("INT", {
-        if (maybe({ expectWord("0") }) == true) {
+    private fun INT(immediateNeighbour: Boolean = false): Int = block("INT", {
+        if (followsCharacter('0')) {
             0
         }
         else {
-            val firstDigit = expectAndGetAnyOfWords(numbers1to9)
-            val restDigits = multipleMaybes { expectAndGetAnyOfWords(numbers0to9) }
+            val firstDigit = expectAnyCharacterOf(numbers1to9, immediateNeighbour)
+            val restDigits = multipleMaybes({ expectAnyCharacterOf(numbers0to9, true) })
 
             val numberAsString = firstDigit + restDigits.joinToString("")
             numberAsString.toInt()
@@ -394,11 +424,22 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     })
 
     private fun EXP(): Int = block("EXP", {
-        expectAndGetAnyOfWords(listOf("e", "E"))
-        val signStr = maybe { expectAndGetAnyOfWords(listOf("+", "-")) }
-        val sign = if (signStr == "-") -1 else 1
+        expectAnyCharacterOf(exponentialPartPrefixes)
 
-        sign * INT()
+        val sign =
+                if (followsCharacter('-')) {
+                    fetchCharacter()
+
+                    -1
+                }
+                else {
+                    if (followsCharacter('+'))
+                        fetchCharacter()
+
+                    +1
+                }
+
+        sign * INT(true)
     })
 
     private fun fragmentSpread(): FragmentSpread = block("FragmentSpread", {
@@ -431,7 +472,7 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
         FragmentDefinition(
                 name,
                 typeCondition(),
-                maybe { directives() },
+                maybe(::directives),
                 selectionSet()
         )
     })
@@ -461,12 +502,32 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     }
 
     abstract class Value : ValueOrVariable()
-    class StringValue(val string: String) : Value()
+    inner class StringValue(val startPos: Int, val endPos: Int, val avoidPoints: List<Int>) : Value() {
+        val string: String by lazy {
+            if (avoidPoints.isEmpty()) {
+                buffer.substring(startPos, endPos)
+            } else {
+                val sb = StringBuilder()
+                var pos = startPos
+                val avoid = avoidPoints.iterator()
+                while (pos < endPos && avoid.hasNext()) {
+                    val avoidNext = avoid.next()
+                    sb.append(buffer.substring(pos, avoidNext))
+                    pos = avoidNext
+                }
+
+                if (pos < endPos - 1)
+                    sb.append(buffer.substring(pos, endPos))
+
+                sb.toString()
+            }
+        }
+    }
     class NumberValue(val isMinus: Boolean, val integralPart: Int, val fractionalPart: Int, val exponentialPart: Int?, val valueAsString: String) : Value() {
         val value: Number = valueAsString.toDouble()
     }
     class BooleanValue(val boolean: Boolean) : Value()
-    class Array(val values: ArrayList<Value>) : Value()
+    class Array(val values: List<Value>) : Value()
     class EnumValue(val value: String) : Value()
 
     class Variable(val name: String) : ValueOrVariable()

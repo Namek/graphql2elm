@@ -6,7 +6,6 @@ class SelectedFieldOutput(val schema: Schema, val operations: List<OperationDef>
 
 fun parseSchemaJson(schemaJson: String): Schema {
     val doc = JsonParser(schemaJson).parse()
-
     val jsonRoot = doc.asObject()["data"].asObject()["__schema"].asObject()
 
     val jsonTypes = jsonRoot["types"].asArray()

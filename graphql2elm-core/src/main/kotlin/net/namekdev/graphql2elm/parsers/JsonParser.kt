@@ -1,10 +1,10 @@
 package net.namekdev.graphql2elm.parsers
 
+private val whitespace = listOf(' ', '\t', '\n', '\r')
+private val numbers0to9 = (0..9).map { it.toChar() }
+private val numbers1to9 = (1..9).map { it.toChar() }
+private val exponentialPartPrefixes = listOf('e', 'E')
 
-private val whitespace = " \t\n\r"
-private val numbers0to9 = (0..9).map { it.toString() }
-private val numbers1to9 = (1..9).map { it.toString() }
-private val SAFECODEPOINT = listOf('\"', '\\') + ('\u0000'..'\u001F')
 
 class JsonParser(buffer: String) : AbstractParser(buffer, whitespace) {
     fun parse(): Value {
@@ -16,123 +16,142 @@ class JsonParser(buffer: String) : AbstractParser(buffer, whitespace) {
     })
 
     private fun obj(): ValueObject = block("ValueObject", {
-        expectWord("{")
+        expectMeaningfulCharacter('{')
 
         val pairs = mutableMapOf<String, Value>()
-
-        val firstPair = maybe { pair() }
+        val firstPair = maybe(::pair)
         if (firstPair != null) {
             pairs.put(firstPair.key, firstPair.value)
 
-            multipleMaybes {
-                expectWord(",")
-                val p = pair()
-                pairs.put(p.key, p.value)
-                p
+            while (true) {
+                val ch = fetchMeaningfulCharacter()
+
+                if (ch == ',') {
+                    val p = pair()
+                    pairs.put(p.key, p.value)
+                }
+                else if (ch == '}') {
+                    break
+                }
+                else {
+                    throw parseError("expected '}' for object enclose")
+                }
             }
         }
+        else {
+            expectMeaningfulCharacter('}')
+        }
 
-        expectWord("}")
         ValueObject(pairs)
     })
 
     private inline fun pair(): ObjPair = block("Pair", {
         val key = STRING().string
-        expectWord(":")
+        expectMeaningfulCharacter(':')
         val value = value()
 
         ObjPair(key, value)
     })
 
     private fun array(): ValueArray = block("ValueArray", {
-        expectWord("[")
+        expectMeaningfulCharacter('[')
 
         val values = mutableListOf<Value>()
-        val firstVal = maybe { value() }
+        val firstVal = maybe(::value)
         if (firstVal != null) {
             values.add(firstVal)
 
-            multipleMaybes {
-                expectWord(",")
-                values.add(value())
+            while (true) {
+                val ch = fetchMeaningfulCharacter()
+                if (ch == ',') {
+                    values.add(value())
+                }
+                else if (ch == ']') {
+                    break
+                }
+                else {
+                    throw parseError("expected ']' for array enclose")
+                }
             }
         }
+        else {
+            expectMeaningfulCharacter(']')
+        }
 
-        expectWord("]")
         ValueArray(values)
     })
 
-    private inline fun STRING(): ValueString = block("ValueString", {
-        // '"' ( ESC | ~ SAFECODEPOINT )* '"'
+    private fun STRING(): ValueString = block("STRING", {
+        expectMeaningfulCharacter('"')
 
-        expectWord("\"")
+        val startPos = pos
+        val avoidPoints = mutableListOf<Int>()
 
-        val chars = multipleMaybes {
-            expectOneOf(
-                    { ESC() },
-                    { expectNeitherOf(SAFECODEPOINT) }
-            )
+        while (pos < buffer.length) {
+            val ch = buffer[pos++]
+
+            if (ch == '"') {
+                break
+            }
+
+            //escaping
+            if (ch == '\\') {
+                val esc = buffer[pos]
+
+                if (esc == '"' || esc == '\\' || esc == '/' || esc == 'b' || esc == 'f' || esc == 'n' || esc == 'r' || esc == 't') {
+                    avoidPoints.add(pos++)
+                }
+                else if (esc == 'u') {
+                    // unicode
+                    block("escaped unicode", {
+                        for (i in 1..4) {
+                            expectAndGet { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
+                        }
+                    })
+                }
+                else {
+                    throw parseError("unknown char escape: '\\$esc'")
+                }
+            }
+            else if (ch in '\u0000'..'\u001F') {
+                throw parseError("illegal unicode in string: '$ch'")
+            }
         }
 
-        expectWord("\"")
+        if (pos >= buffer.length-1) {
+            throw parseError("string finished before meeting closing '\"'")
+        }
 
-        ValueString(chars.joinToString(""))
-    })
-
-    private inline fun ESC(): String = block("ESC: String", {
-        expectAndGet('\\')
-
-        val escaped = expectOneOf(
-                {expectAndGet {
-                    it == '"' || it == '\\' || it == '/' || it == 'b' || it == 'f' || it == 'n' || it == 'r' || it == 't'
-                }.toString() },
-                {UNICODE()}
-        )
-
-        '\\' + escaped
-    })
-
-    private inline fun UNICODE(): String = block("UNICODE: String", {
-        "" + expectAndGet('u') + HEX() + HEX() + HEX() + HEX()
-    })
-
-    private inline fun HEX(): Char = block("HEX: Char", {
-        expectAndGet { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
+        ValueString(startPos, pos - 1, avoidPoints)
     })
 
     private inline fun NUMBER(): ValueNumber = block("ValueNumber", {
         // '-'? INT
-        val minus = maybe { expectWord("-") } == true
+        val minus = followsCharacter('-')
         val integralPart = INT()
 
-        maybe {
-            expectOneOf(
-                    {
-                        // '.' [0-9]+ EXP?
-                        expectWord(".")
-                        val firstDigit = expectAndGetAnyOfWords(numbers0to9)
-                        val restDigits = multipleMaybes { expectAndGetAnyOfWords(numbers0to9) }
-                        val fractionalPart = (firstDigit + restDigits).toInt()
-                        ValueNumber(minus, integralPart, fractionalPart, maybe { EXP() }, getCurrentBlockAsString("ValueNumber").trim())
-                    },
-                    {
-                        // EXP
-                        ValueNumber(minus, integralPart, 0, EXP(), getCurrentBlockAsString("ValueNumber").trim())
-                    },
-                    {
-                        ValueNumber(minus, integralPart, 0, null, getCurrentBlockAsString("ValueNumber").trim())
-                    }
-            )
-        }
+        expectOneOf(
+                {
+                    // '.' [0-9]+ EXP?
+                    expectCharacter('.')
+                    val firstDigit = expectAnyCharacterOf(numbers0to9, true)
+                    val restDigits = multipleMaybes({ expectAnyCharacterOf(numbers0to9, true) })
+                    val fractionalPart = (firstDigit + restDigits.joinToString("")).toInt()
+                    ValueNumber(minus, integralPart, fractionalPart, maybe(::EXP), getCurrentBlockAsString("ValueNumber").trim())
+                },
+                {
+                    // EXP?
+                    ValueNumber(minus, integralPart, 0, maybe(::EXP), getCurrentBlockAsString("ValueNumber").trim())
+                })
     })
 
     private inline fun INT(): Int = block("INT", {
-        if (maybe({ expectWord("0") }) == true) {
+        if (followsCharacter('0')) {
             0
         }
         else {
-            val firstDigit = expectAndGetAnyOfWords(numbers1to9)
-            val restDigits = multipleMaybes { expectAndGetAnyOfWords(numbers0to9) }
+            val firstDigit = expectAnyCharacterOf(numbers1to9)
+            val restDigits = multipleMaybes({ expectAnyCharacterOf(numbers0to9) })
 
             val numberAsString = firstDigit + restDigits.joinToString("")
             numberAsString.toInt()
@@ -140,9 +159,18 @@ class JsonParser(buffer: String) : AbstractParser(buffer, whitespace) {
     })
 
     private inline fun EXP(): Int = block("EXP", {
-        expectAndGetAnyOfWords(listOf("e", "E"))
-        val signStr = maybe { expectAndGetAnyOfWords(listOf("+", "-")) }
-        val sign = if (signStr == "-") -1 else 1
+        expectAnyCharacterOf(exponentialPartPrefixes)
+        val sign =
+                if (followsCharacter('-')) {
+                    fetchCharacter()
+                    -1
+                }
+                else {
+                    if (followsCharacter('+'))
+                        fetchCharacter()
+
+                    +1
+                }
 
         sign * INT()
     })
@@ -150,16 +178,12 @@ class JsonParser(buffer: String) : AbstractParser(buffer, whitespace) {
     private inline fun BOOLEAN(): ValueBoolean = block("ValueBoolean", {
         expectOneOf(
                 {
-                    if (expectWord("true"))
-                        ValueBoolean(true)
-                    else
-                        throw Exception()
+                    expectWord("true")
+                    ValueBoolean(true)
                 },
                 {
-                    if (expectWord("false"))
-                        ValueBoolean(false)
-                    else
-                        throw Exception()
+                    expectWord("false")
+                    ValueBoolean(false)
                 }
         )
     })
@@ -182,7 +206,27 @@ class JsonParser(buffer: String) : AbstractParser(buffer, whitespace) {
         fun asBoolean() = this as ValueBoolean
     }
 
-    class ValueString(val string: String) : Value()
+    inner class ValueString(val startPos: Int, val endPos: Int, val avoidPoints: List<Int>) : Value() {
+        val string: String by lazy {
+            if (avoidPoints.isEmpty()) {
+                buffer.substring(startPos, endPos)
+            } else {
+                val sb = StringBuilder()
+                var pos = startPos
+                val avoid = avoidPoints.iterator()
+                while (pos < endPos && avoid.hasNext()) {
+                    val avoidNext = avoid.next()
+                    sb.append(buffer.substring(pos, avoidNext))
+                    pos = avoidNext
+                }
+
+                if (pos < endPos - 1)
+                    sb.append(buffer.substring(pos, endPos))
+
+                sb.toString()
+            }
+        }
+    }
     class ValueNumber(val isMinus: Boolean, val integralPart: Int, val fractionalPart: Int, val exponentialPart: Int?, private val valueAsString: String) : Value() {
         val value: Number = valueAsString.toDouble()
     }

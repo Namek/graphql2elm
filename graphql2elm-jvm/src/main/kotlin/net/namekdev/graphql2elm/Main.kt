@@ -4,8 +4,18 @@ import net.namekdev.graphql2elm.parsers.GraphQLParser
 import net.namekdev.graphql2elm.parsers.mergeSchemaIntoQuery
 import net.namekdev.graphql2elm.parsers.parseSchemaJson
 
-
 actual fun main(args: Array<String>) {
+    val str0 = """
+    query {
+      currentUser {
+        balances {
+          value
+          iHaveMore
+        }
+      }
+    }
+    """
+
     val str1 = """
     query {
       currentUser {
@@ -90,7 +100,7 @@ actual fun main(args: Array<String>) {
     """
 
 
-    val elmCode = generateElmCode(query = str4, schema = queryForSchema())
+    val elmCode = generateElmCode(query = str5, schema = queryForSchema())
     print(elmCode)
 }
 

@@ -1,6 +1,6 @@
 package net.namekdev.graphql2elm.parsers
 
-abstract class AbstractParser(val buffer: String, val whitespace: String) {
+abstract class AbstractParser(val buffer: String, val whitespace: List<Char>) {
     /**
      * Position of next character.
      */
@@ -23,6 +23,10 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         return buffer.substring(0, pos) + "|" + buffer.substring(pos)
     }
 
+    fun debugPos(): String {
+        return debugPos(this.pos)
+    }
+
     protected inline fun isCharacterMeaningful(pos: Int): Boolean {
         val ch = buffer[pos]
         return !whitespace.contains(ch)
@@ -40,11 +44,11 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
 
     protected inline fun fetchCharacter() = getCharacter(pos++)
 
-    protected inline fun fetchMeaningfulCharacter(): Char {
+    protected fun fetchMeaningfulCharacter(): Char {
         pushPos()
 
         try {
-            do {
+            while (true) {
                 if (isNextCharacterMeaningful()) {
                     val ch = fetchCharacter()
                     popPos()
@@ -53,32 +57,82 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
                 else {
                     pos++
                 }
-            } while (true)
+            }
         }
         catch (exc: Exception) {
-            popPos()
+            popSavePos()
         }
 
-        throw parseBackTrack()//"expected a meaningful character here")
+        throw parseBackTrack()
     }
 
-    protected inline fun goToFirstMeaningfulCharacter() {
+    protected fun goToFirstMeaningfulCharacter() {
         pushPos()
-        val startPos = pos
         try {
             while (!isNextCharacterMeaningful()) {
                 pos++
             }
-        }
-        catch (exc: ParseBackTrack) {
-            throw parseBackTrack()//"couldn't find first meaningful character from pos: ${startPos}")
-        }
-        finally {
             popPos()
+        }
+        catch (exc: IndexOutOfBoundsException) {
+            popSavePos()
+            throw parseBackTrack()
         }
     }
 
-    protected inline fun expectWord(word: String): Boolean {
+    protected fun expectMeaningfulCharacter(ch: Char): Boolean {
+        pushPos("expected character: '$ch'")
+        try {
+            goToFirstMeaningfulCharacter()
+        }
+        catch(exc: Exception) {
+            popSavePos()
+            throw parseBackTrack()
+        }
+
+        if (getCharacter(pos) != ch) {
+            popSavePos()
+            throw parseBackTrack()
+        }
+        else {
+            popPos()
+            pos++
+            return true
+        }
+    }
+
+    protected fun expectCharacter(ch: Char) {
+        if (buffer[pos] == ch) {
+            pos++
+        }
+        else {
+            throw parseBackTrack()
+        }
+    }
+
+    protected fun followsCharacter(ch: Char): Boolean {
+        return if (buffer[pos] == ch) {
+            pos++
+            true
+        }
+        else {
+            false
+        }
+    }
+
+    protected fun followsMeaningfulCharacter(ch: Char): Boolean {
+        val startPos = pos
+        goToFirstMeaningfulCharacter()
+        if (followsCharacter(ch)) {
+            return true
+        }
+        else {
+            pos = startPos
+            return false
+        }
+    }
+
+    protected fun followsWord(word: String): Boolean {
         pushPos()
 
         try {
@@ -86,17 +140,52 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
             var ch: Char
             var i = 0
             do {
-                ch = fetchMeaningfulCharacter()
+                ch = fetchCharacter()
 
                 if (ch != word[i++]) {
-                    throw parseBackTrack()//"expected word `${word}`")
+                    popSavePos()
+                    return false
+                }
+            } while (i < word.length)
+
+            popPos()
+            return true
+        }
+        catch (exc: Exception) {
+            popSavePos()
+            return false
+        }
+    }
+
+    protected fun expectWord(word: String) {
+        pushPos()
+
+        var fail = false
+        try {
+            goToFirstMeaningfulCharacter()
+            var ch: Char
+            var i = 0
+            do {
+                ch = fetchCharacter()
+
+                if (ch != word[i++]) {
+                    fail = true
+                    break
                 }
             } while (i < word.length)
         }
-        finally {
-            popPos()
+        catch (exc: Exception) {
+            fail = true
         }
-        return true
+        finally {
+            if (fail) {
+                popSavePos()
+                throw parseBackTrack()
+            }
+            else {
+                popPos()
+            }
+        }
     }
 
     protected inline fun expectAndGetWord(word: String): String {
@@ -104,15 +193,15 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         return word
     }
 
-    protected inline fun expectAndGetAnyOfWords(words: List<String>): String {
+    protected fun expectAnyOfWords(words: List<String>): String {
         val word = words.firstOrNull {
-            maybe { expectWord(it) } == true
+           followsWord(it)
         }
 
-        return word ?: throw parseBackTrack()//"none of words was found: " + (words.joinToString(",")))
+        return word ?: throw parseBackTrack()
     }
 
-    protected inline fun expectAndGet(matches: (Char) -> Boolean): Char {
+    protected fun expectAndGet(matches: (Char) -> Boolean): Char {
         pushPos()
         val ch = fetchCharacter()
         if (matches(ch)) {
@@ -125,6 +214,19 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         }
     }
 
+    protected fun expectAnyCharacterOf(chars: List<Char>, immediateNeighbour: Boolean = false): Char {
+        val ch =
+                if (immediateNeighbour)
+                    fetchCharacter()
+                else
+                    fetchMeaningfulCharacter()
+
+        if (ch !in chars)
+            throw parseBackTrack()
+
+        return ch
+    }
+
     protected inline fun expectAndGet(char: Char): Char {
         return expectAndGet { it == char }
     }
@@ -133,7 +235,7 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         return expectAndGet { !chars.contains(it) }
     }
 
-    protected fun maybeExpect(char: Char): Boolean {
+    protected inline fun maybeExpect(char: Char): Boolean {
         return maybe { expectAndGet(char) } == char
     }
 
@@ -182,7 +284,7 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         return maybe(function) ?: getDefault()
     }
 
-    protected inline fun <T>multipleMaybes(noinline function: () -> T?): List<T> {
+    protected inline fun <T>multipleMaybes(noinline function: () -> T?, minimum: Int = 0): List<T> {
         val list = arrayListOf<T>()
 
         do {
@@ -193,14 +295,17 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         }
         while (el != null)
 
+        if (list.size < minimum)
+            throw parseBackTrack()
+
         return list
     }
 
-    protected inline fun <T>expectOneOf(vararg expressions: () -> T, throwErrorIfNotFound: Boolean = true): T {
+    protected fun <T>expectOneOf(vararg expressions: () -> T, throwErrorIfNotFound: Boolean = true): T {
         var ret: T? = null
 
         for (func in expressions) {
-            ret = maybe { func() }
+            ret = maybe(func)
             if (ret != null)
                 break
         }
@@ -235,21 +340,21 @@ abstract class AbstractParser(val buffer: String, val whitespace: String) {
         }
     }
 
-    protected fun getCurrentBlockAsString(id: String): String {
+    protected inline fun getCurrentBlockAsString(id: String): String {
         val end = this.pos
         val start = posStack.last { it.id == id }.pos
 
         return fetchString(start, end)
     }
 
-    protected inline fun parseBackTrack(): Exception {
-        return ParseBackTrack
+    protected fun parseBackTrack(): Exception {
+        return ParseBackTrack()
     }
 
-    protected inline fun parseError(msg: String): ParseErrorException {
+    protected fun parseError(msg: String): ParseErrorException {
         return ParseErrorException(msg)
     }
 
-    object ParseBackTrack : RuntimeException()
+    class ParseBackTrack : RuntimeException()
     class ParseErrorException(msg: String) : RuntimeException(msg)
 }
