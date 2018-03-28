@@ -1,12 +1,13 @@
 module Main exposing (..)
 
+import Array
 import Data.Settings as Settings exposing (Settings)
 import Html exposing (..)
 import Html.Attributes as Attr exposing (style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Value)
 import Misc exposing (..)
-import Ports exposing (elmCodeGenerationResult, generateElmCode)
+import Ports exposing (elmCodeGenerationError, elmCodeGenerationResult, generateElmCode)
 
 
 main : Program Value Model Msg
@@ -19,17 +20,16 @@ main =
         }
 
 
-type alias MainFlags =
-    Maybe { query : String, schema : String }
-
-
 
 -- SUBSCRIPTIONS
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    elmCodeGenerationResult ElmCodeGenerationResult
+    Sub.batch <|
+        [ elmCodeGenerationResult ElmCodeGenerationResult
+        , elmCodeGenerationError (Array.toList >> ElmCodeGenerationError)
+        ]
 
 
 
@@ -39,6 +39,7 @@ subscriptions model =
 type alias Model =
     { settings : Settings
     , elmCode : Maybe String
+    , errors : Maybe (List String)
     }
 
 
@@ -48,6 +49,7 @@ init json =
         model =
             { settings = json |> Settings.decodeFromJson
             , elmCode = Nothing
+            , errors = Nothing
             }
     in
     ( model, Cmd.none )
@@ -64,7 +66,8 @@ type Msg
     | SetSchema String
     | SetQuery String
     | GenerateElmCode
-    | ElmCodeGenerationResult (Maybe String)
+    | ElmCodeGenerationResult String
+    | ElmCodeGenerationError (List String)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -93,7 +96,11 @@ update msg model =
             model => generateElmCode (settings |> Settings.encode)
 
         ElmCodeGenerationResult res ->
-            { model | elmCode = res }
+            { model | elmCode = Just res, errors = Nothing }
+                => Cmd.none
+
+        ElmCodeGenerationError errors ->
+            { model | elmCode = Nothing, errors = Just errors }
                 => Cmd.none
 
 
@@ -135,6 +142,16 @@ view model =
                 []
             ]
         , div [] [ button [ onClick GenerateElmCode ] [ text "\x1F937 Generate Elm" ] ]
+        , viewIf (model.errors /= Nothing)
+            (div []
+                [ h1 [] [ text "Errors" ]
+                , pre []
+                    (model.errors
+                        |> Maybe.andThen (List.map ((++) "\n" >> text) >> Just)
+                        |> Maybe.withDefault []
+                    )
+                ]
+            )
         , viewIf (model.elmCode /= Nothing)
             (div []
                 [ h1 [] [ text "Result" ]

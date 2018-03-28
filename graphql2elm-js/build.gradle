@@ -27,7 +27,7 @@ task compileElmUi(type: Exec) {
     commandLine 'cmd', '/c', "elm-make src/Main.elm --output \"${project.buildDir}/elm/ui.js\""
 }
 
-combineJs {
+task combineJsLogic(type: com.eriwen.gradle.js.tasks.CombineJsTask) {
     source = [
             "${buildDir}/kotlin-js-min/main/kotlin.js",
             "${buildDir}/kotlin-js-min/main/graphql2elm-js.js",
@@ -38,7 +38,7 @@ combineJs {
 }
 
 task minifyJsLogic(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
-    source = combineJs
+    source = combineJsLogic
     dest = file("${temporaryDir}/logic.js")
     closure {
         compilerOptions = new CompilerOptions().with {
@@ -47,7 +47,7 @@ task minifyJsLogic(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
         }
     }
 
-    dependsOn combineJs
+    dependsOn combineJsLogic
 }
 
 task minifyJsElmUi(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
@@ -63,9 +63,10 @@ task minifyJsElmUi(type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
     dependsOn compileElmUi
 }
 
-task assembleWeb(type: Sync, dependsOn: [classes, compileElmUi, combineJs]) {
-//    from minifyJsLogic   //change it to `combineJs` if don't want to minify logic
-    from combineJs
+task assembleWeb(type: Sync, dependsOn: [classes, compileElmUi, combineJsLogic]) {
+    from minifyJsLogic   //change it to `combineJsLogic` if don't want to minify logic
+//    from combineJsLogic
+
     from minifyJsElmUi
 
     from ("${projectDir}/src/web") {

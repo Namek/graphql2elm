@@ -1,5 +1,7 @@
 package net.namekdev.graphql2elm.parsers
 
+import net.namekdev.graphql2elm.misc.*
+
 private val whitespace =
         listOf(
                 '\t',    // Horizontal Tab
@@ -19,34 +21,40 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     private val variableRefs = mutableListOf<Variable>()
 
 
-    fun parse(): Document? {
+    fun parse(): Result<Document, List<String>> {
         val errors = mutableListOf<String>()
+        var ret: Result<Document, List<String>> = Result.err(errors)
 
         try {
             val doc = document()
 
-//            val fragmentTypeNames = doc.definitions
-//                    .mapNotNull { it as FragmentDefinition }
-//                    .map { it.fragmentName }
+            val allVariablesExist = variableRefs.all { varRef ->
+                doc.definitions.mapNotNull { it as OperationDefinition }
+                        .any {
+                            val variableExists = it.variableDefinitions?.definitions?.any {
+                                it.variable.name == varRef.name
+                            } ?: false
 
-
-            // referenced variables should be defined previously
-            doc.definitions
-                    .mapNotNull { it as OperationDefinition }
-                    .forEach {
-                        it.variableDefinitions?.definitions?.forEach {
-                            val varName = it.variable.name
-                            if (!variableRefs.any { it.name == varName }) {
-                                errors.add("unknown variable name: $varName")
+                            if (!variableExists) {
+                                errors.add("variable ${varRef.name} is not defined")
                             }
+
+                            variableExists
                         }
-                    }
+            }
 
+            if (!allVariablesExist) {
+                throw ParseErrorException("some variables are not defined")
+            }
 
-            return doc
-        } catch (exc: Throwable) {
-            return null
+            if (errors.size == 0) {
+                ret = Result.ok(doc)
+            }
+        } catch (exc: ParseErrorException) {
+            errors.add(exc.toString())
         }
+
+        return ret
     }
 
     private fun document(): Document = block("document", {
@@ -62,7 +70,7 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 {
                     OperationDefinition(
                             operationType(),
-                            maybe{ NAME() },
+                            maybe { NAME() },
                             maybe(::variableDefinitions),
                             maybe(::directives),
                             selectionSet()
@@ -96,14 +104,12 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
 
         if (ch == ':') {
             Directive(name, valueOrVariable())
-        }
-        else if (ch == '(') {
+        } else if (ch == '(') {
             val arg = argument()
             expectMeaningfulCharacter(')')
 
             Directive(name, argument = arg)
-        }
-        else {
+        } else {
             pos--
             Directive(name)
         }
@@ -158,16 +164,14 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 if (ch == '_' || ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9') {
                     str += ch
                     popPos()
-                }
-                else {
+                } else {
                     popSavePos()
                     break
                 }
             }
 
             return str
-        }
-        else {
+        } else {
             popPos()
         }
 
@@ -189,11 +193,9 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
             if (ch == ',') {
                 // there may be more commas that should be ignored
                 continue
-            }
-            else if (ch == '}') {
+            } else if (ch == '}') {
                 break
-            }
-            else {
+            } else {
                 // suppose there was whitespace so we moved 1 byte too far
                 --pos
                 list += selection()
@@ -305,18 +307,15 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 if (ch == ',') {
                     // there may be more commas that should be ignored
                     continue
-                }
-                else if (ch == ']') {
+                } else if (ch == ']') {
                     break
-                }
-                else {
+                } else {
                     // suppose there was whitespace so we moved 1 byte too far
                     --pos
                     values.add(value())
                 }
             }
-        }
-        else {
+        } else {
             expectMeaningfulCharacter(']')
         }
 
@@ -326,7 +325,7 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     private fun enumValue(): EnumValue = block("EnumValue", {
         val str = NAME()
 
-        if (str == "true" || str == "false"|| str == "null" ) {
+        if (str == "true" || str == "false" || str == "null") {
             throw parseBackTrack()//"true/false/null can't be an enum value")
         }
 
@@ -352,25 +351,22 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
 
                 if (esc == '"' || esc == '\\' || esc == '/' || esc == 'b' || esc == 'f' || esc == 'n' || esc == 'r' || esc == 't') {
                     avoidPoints.add(pos++)
-                }
-                else if (esc == 'u') {
+                } else if (esc == 'u') {
                     // unicode
                     block("escaped unicode", {
                         for (i in 1..4) {
                             expectAndGet { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
                         }
                     })
-                }
-                else {
+                } else {
                     throw parseError("unknown char escape: '\\$esc'")
                 }
-            }
-            else if (ch in '\u0000'..'\u001F') {
+            } else if (ch in '\u0000'..'\u001F') {
                 throw parseError("illegal unicode in string: '$ch'")
             }
         }
 
-        if (pos >= buffer.length-1) {
+        if (pos >= buffer.length - 1) {
             throw parseError("string finished before meeting closing '\"'")
         }
 
@@ -413,8 +409,7 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
     private fun INT(immediateNeighbour: Boolean = false): Int = block("INT", {
         if (followsCharacter('0')) {
             0
-        }
-        else {
+        } else {
             val firstDigit = expectAnyCharacterOf(numbers1to9, immediateNeighbour)
             val restDigits = multipleMaybes({ expectAnyCharacterOf(numbers0to9, true) })
 
@@ -431,8 +426,7 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                     fetchCharacter()
 
                     -1
-                }
-                else {
+                } else {
                     if (followsCharacter('+'))
                         fetchCharacter()
 
@@ -476,7 +470,6 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
                 selectionSet()
         )
     })
-
 
 
     class VariableDefinitions(val definitions: List<VariableDefinition>)
@@ -523,9 +516,11 @@ class GraphQLParser(buffer: String) : AbstractParser(buffer, whitespace) {
             }
         }
     }
+
     class NumberValue(val isMinus: Boolean, val integralPart: Int, val fractionalPart: Int, val exponentialPart: Int?, val valueAsString: String) : Value() {
         val value: Number = valueAsString.toDouble()
     }
+
     class BooleanValue(val boolean: Boolean) : Value()
     class Array(val values: List<Value>) : Value()
     class EnumValue(val value: String) : Value()

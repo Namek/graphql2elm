@@ -1,8 +1,10 @@
 package net.namekdev.graphql2elm
 
+import net.namekdev.graphql2elm.misc.Result
 import net.namekdev.graphql2elm.parsers.GraphQLParser
 import net.namekdev.graphql2elm.parsers.mergeSchemaIntoQuery
 import net.namekdev.graphql2elm.parsers.parseSchemaJson
+
 
 actual fun main(args: Array<String>) {
     val str0 = """
@@ -99,9 +101,26 @@ actual fun main(args: Array<String>) {
     }
     """
 
+    // this one contains error by purpose
+    val str6 = """
+    query {
+      currentUser
+        balances {
+          otherUser {
+            id
+            name
+          }
+        }
+      }
+    }
+    """
 
-    val elmCode = generateElmCode(query = str5, schema = queryForSchema())
-    print(elmCode)
+
+    generateElmCode(query = str6, schema = queryForSchema())
+            .map { print(it) }
+            .mapError {
+                it.map { "[E] $it" }.forEach(::println)
+            }
 }
 
 fun queryForSchema(): String {
@@ -204,25 +223,28 @@ fun queryForSchema(): String {
     """
 }
 
-fun generateElmCode(query: String, schema: String): String {
+fun generateElmCode(query: String, schema: String): Result<String, List<String>> {
     val parser = GraphQLParser(query)
     val typeSystem = parseSchemaJson(schema)
-    val doc = parser.parse()!!
-    val output = mergeSchemaIntoQuery(doc, typeSystem)
 
-    val knownTypes = arrayListOf<RegisteredType>(
-            RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
-    )
-    val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
-    val emitterConfig = CodeEmitterConfig(
-            "Q",
-            true,
-            true,
-            knownTypes,
-            backendTypesMap
-    )
-    val elmCode = emitElmCode(output.operations[0], emitterConfig)
+    return parser.parse()
+            .map { doc ->
+                val output = mergeSchemaIntoQuery(doc, typeSystem)
 
-    return elmCode
+                val knownTypes = arrayListOf<RegisteredType>(
+                        RegisteredType("TransactionType", null, "decodeTransactionType", null, "Data.Transaction")
+                )
+                val backendTypesMap = hashMapOf(Pair("Boolean", "Bool"))
+                val emitterConfig = CodeEmitterConfig(
+                        "Q",
+                        true,
+                        true,
+                        knownTypes,
+                        backendTypesMap
+                )
+                val elmCode = emitElmCode(output.operations[0], emitterConfig)
+
+                elmCode
+            }
 }
 
