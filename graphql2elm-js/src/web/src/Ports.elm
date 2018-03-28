@@ -4,7 +4,17 @@ import Array exposing (Array)
 import Json.Encode exposing (Value)
 
 
+-- OUT
+
+
 port generateElmCode : Value -> Cmd msg
+
+
+port selectGeneratedElmCode : String -> Cmd msg
+
+
+
+-- IN
 
 
 port elmCodeGenerationResult : (String -> msg) -> Sub msg

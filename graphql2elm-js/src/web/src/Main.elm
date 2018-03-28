@@ -6,8 +6,9 @@ import Html exposing (..)
 import Html.Attributes as Attr exposing (style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Value)
+import Maybe.Extra exposing (isJust)
 import Misc exposing (..)
-import Ports exposing (elmCodeGenerationError, elmCodeGenerationResult, generateElmCode)
+import Ports exposing (elmCodeGenerationError, elmCodeGenerationResult, generateElmCode, selectGeneratedElmCode)
 
 
 main : Program Value Model Msg
@@ -30,6 +31,14 @@ subscriptions model =
         [ elmCodeGenerationResult ElmCodeGenerationResult
         , elmCodeGenerationError (Array.toList >> ElmCodeGenerationError)
         ]
+
+
+
+-- CONSTS
+
+
+resultCodeElementId =
+    "result-code"
 
 
 
@@ -68,6 +77,7 @@ type Msg
     | GenerateElmCode
     | ElmCodeGenerationResult String
     | ElmCodeGenerationError (List String)
+    | SelectGeneratedElmCode
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -102,6 +112,9 @@ update msg model =
         ElmCodeGenerationError errors ->
             { model | elmCode = Nothing, errors = Just errors }
                 => Cmd.none
+
+        SelectGeneratedElmCode ->
+            model => selectGeneratedElmCode resultCodeElementId
 
 
 
@@ -141,7 +154,11 @@ view model =
                 ]
                 []
             ]
-        , div [] [ button [ onClick GenerateElmCode ] [ text "\x1F937 Generate Elm" ] ]
+        , div []
+            [ button [ onClick GenerateElmCode ] [ text "\x1F937 Generate Elm" ]
+            , viewIf (isJust model.elmCode) <|
+                button [ onClick SelectGeneratedElmCode ] [ text "Select generated code" ]
+            ]
         , viewIf (model.errors /= Nothing)
             (div []
                 [ h1 [] [ text "Errors" ]
@@ -155,7 +172,7 @@ view model =
         , viewIf (model.elmCode /= Nothing)
             (div []
                 [ h1 [] [ text "Result" ]
-                , pre [] [ text <| Maybe.withDefault "" model.elmCode ]
+                , pre [ Attr.id resultCodeElementId ] [ text <| Maybe.withDefault "" model.elmCode ]
                 ]
             )
         ]

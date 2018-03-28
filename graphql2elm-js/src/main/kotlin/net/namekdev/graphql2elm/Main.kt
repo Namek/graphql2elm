@@ -45,6 +45,12 @@ actual fun main(args: Array<String>) {
 
             0
         }
+
+        app.ports.selectGeneratedElmCode.subscribe { elId ->
+            val el: dynamic = document.getElementById(elId)!!
+            val sel = js("window.getSelection()")
+            sel.selectAllChildren(el)
+        }
     }
 }
 
