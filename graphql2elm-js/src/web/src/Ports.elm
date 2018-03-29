@@ -10,7 +10,10 @@ import Json.Encode exposing (Value)
 port generateElmCode : Value -> Cmd msg
 
 
-port selectGeneratedElmCode : String -> Cmd msg
+port selectText_Pre : String -> Cmd msg
+
+
+port selectText_TextArea : String -> Cmd msg
 
 
 

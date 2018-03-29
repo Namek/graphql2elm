@@ -1,6 +1,9 @@
 module Misc exposing (..)
 
 import Html exposing (Html, text)
+import Process
+import Task
+import Time exposing (Time)
 
 
 (=>) : a -> b -> ( a, b )
@@ -28,3 +31,10 @@ either a1 a2 cond =
         a1
     else
         a2
+
+
+delayMsg : Time -> msg -> Cmd msg
+delayMsg time msg =
+    Process.sleep time
+        |> Task.andThen (always <| Task.succeed msg)
+        |> Task.perform identity
