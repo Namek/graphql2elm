@@ -39,3 +39,9 @@ However focusing on the #2 would produce a more friendly tool approachable even 
 - Parsing of GraphQL queries is done with custom parser
 - Schema is a JSON which comes from a result of GraphQL introspection query (`__schema`)
 - [web generator](https://github.com/Namek/graphql2elm/tree/master/graphql2elm-js) is done with Elm
+
+
+## Build
+
+Build web generator by calling `gradle assemblyWeb`. You'll find it in `build/web`.
+
