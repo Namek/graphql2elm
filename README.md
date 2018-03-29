@@ -43,5 +43,5 @@ However focusing on the #2 would produce a more friendly tool approachable even 
 
 ## Build
 
-Build web generator by calling `gradle assemblyWeb`. You'll find it in `build/web`.
+Build web generator by calling `gradle assembleWeb`. You'll find it in `build/web`.
 
