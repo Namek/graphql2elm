@@ -23,16 +23,6 @@ Basic stuff is already available on [web generator](https://github.com/Namek/gra
 - fragments (?)
 - extend configuration of [online web generator](https://namek.github.io/graphql2elm/) for known types
 
-
-## Discussion
-
-The complete idea of this tool is yet undecided because there are 2 possible paths:
-1. a tool which is automatically launched within development pipeline which checks on query files and schema, then generates whole Elm modules (`.elm` files with code)
-2. a tool that generates something on manual interaction with web and doesn't have to produce compilable code. This one is just as close as useful to final, it's plays a handy generator that does 90% of the job.
-
-The path #1 feels like superior/superset to #2 but it may need more configuration and support more specific cases (some of which I'm probably not aware of?).
-However focusing on the #2 would produce a more friendly tool approachable even by beginners and easier to prove.
-
 # Dev
 
 - Whole logic thing is implemented with [Kotlin](https://kotlinlang.org/) lang. Because it's nice. And it transpiles to JavaScript.
