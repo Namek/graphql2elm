@@ -14,10 +14,10 @@ actual fun main(args: Array<String>) {
         val div = document.createElement("div")
         document.body!!.appendChild(div)
 
-        val app = window["Elm"].Main.embed(
-                div,
-                JSON.parse(localStorage.getItem("settings") ?: "{}")
-        )
+        val appData : dynamic = {}
+        appData.node = div
+        appData.flags = JSON.parse(localStorage.getItem("settings") ?: "{}")
+        val app = window["Elm"].Main.init(appData)
 
         app.ports.generateElmCode.subscribe { settings ->
             val s = settings

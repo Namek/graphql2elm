@@ -24,7 +24,7 @@ task compileElmUi(type: Exec) {
     workingDir "${projectDir}/src/web"
 
     // works on Windows only :(
-    commandLine 'cmd', '/c', "elm-make src/Main.elm --output \"${project.buildDir}/elm/ui.js\""
+    commandLine 'cmd', '/c', "elm make src/Main.elm --output \"${project.buildDir}/elm/ui.js\""
 }
 
 task combineJsLogic(type: com.eriwen.gradle.js.tasks.CombineJsTask) {

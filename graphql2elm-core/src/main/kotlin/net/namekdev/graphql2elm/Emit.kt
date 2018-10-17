@@ -156,18 +156,16 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             else {
                 if (fields.size > 1) {
                     if (isFirstField) {
-                        emit.lineContinue("[")
+                        emit.lineContinue("[ ")
                         isFirstField = false
                     }
                     else {
-                        emit.lineContinue(",")
+                        emit.lineContinue(", ")
                     }
                 }
                 else {
                     emit.lineContinue("(")
                 }
-
-                emit.lineContinue(" ")
             }
 
 
@@ -254,7 +252,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             // field decoder
             if (emitThisFieldAsNullable) {
                 if (fieldType is TObject) {
-                    emit.lineBegin("( ")
+                    emit.lineBegin("(")
                     emit.indentForward()
                 }
                 else {

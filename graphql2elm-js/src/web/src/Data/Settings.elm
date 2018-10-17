@@ -1,7 +1,7 @@
-module Data.Settings exposing (..)
+module Data.Settings exposing (Settings, decodeFromJson, decoder, encode)
 
-import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline as Pipeline exposing (decode, optional, required)
+import Json.Decode as Decode exposing (Decoder, succeed)
+import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
 
 
@@ -16,7 +16,7 @@ type alias Settings =
 
 decoder : Decoder Settings
 decoder =
-    decode Settings
+    succeed Settings
         |> required "representNullableInEmittedGraphQLComment" Decode.bool
         |> required "emitMaybeForNullables" Decode.bool
         |> required "typePrefix" Decode.string

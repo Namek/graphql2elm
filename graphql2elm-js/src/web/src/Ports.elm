@@ -1,7 +1,8 @@
-port module Ports exposing (..)
+port module Ports exposing (elmCodeGenerationError, elmCodeGenerationResult, generateElmCode, selectText_Pre, selectText_TextArea)
 
 import Array exposing (Array)
 import Json.Encode exposing (Value)
+
 
 
 -- OUT

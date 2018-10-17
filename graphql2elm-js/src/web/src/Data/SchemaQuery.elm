@@ -1,4 +1,4 @@
-module Data.SchemaQuery exposing (..)
+module Data.SchemaQuery exposing (introspectionQuery)
 
 
 introspectionQuery : String

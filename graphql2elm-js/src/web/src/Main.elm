@@ -1,6 +1,7 @@
-module Main exposing (..)
+module Main exposing (Model, Msg(..), checkbox, init, main, subscriptions, update, view, viewTextarea)
 
 import Array
+import Browser
 import Data.SchemaQuery exposing (introspectionQuery)
 import Data.Settings as Settings exposing (Settings)
 import Html exposing (..)
@@ -15,7 +16,7 @@ import Time
 
 main : Program Value Model Msg
 main =
-    Html.programWithFlags
+    Browser.element
         { init = init
         , view = view
         , update = update
@@ -39,8 +40,12 @@ subscriptions model =
 -- CONSTS
 
 
-( resultCodeElementId, schemaQueryElementId ) =
-    ( "result-code", "schema-query" )
+resultCodeElementId =
+    "result-code"
+
+
+schemaQueryElementId =
+    "schema-query"
 
 
 
@@ -94,44 +99,49 @@ update msg model =
     in
     case msg of
         ToggleSchemaQuery ->
-            { model | isSchemaQueryExpanded = not model.isSchemaQueryExpanded }
-                => (if not model.isSchemaQueryExpanded then
-                        delayMsg (Time.millisecond * 150) SelectSchemaQuery
+            let
+                cmd =
+                    if not model.isSchemaQueryExpanded then
+                        delayMsg 150 SelectSchemaQuery
+
                     else
                         Cmd.none
-                   )
+            in
+            ( { model | isSchemaQueryExpanded = not model.isSchemaQueryExpanded }, cmd )
 
         SelectSchemaQuery ->
-            model => selectText_TextArea schemaQueryElementId
+            ( model, selectText_TextArea schemaQueryElementId )
 
         ToggleNullableInComment ->
-            { model | settings = { settings | representNullableInEmittedGraphQLComment = not settings.representNullableInEmittedGraphQLComment } } => Cmd.none
+            { model | settings = { settings | representNullableInEmittedGraphQLComment = not settings.representNullableInEmittedGraphQLComment } }
+                |> noCmd
 
         ToggleEmitMaybeForNullableFields ->
-            { model | settings = { settings | emitMaybeForNullables = not settings.emitMaybeForNullables } } => Cmd.none
+            { model | settings = { settings | emitMaybeForNullables = not settings.emitMaybeForNullables } }
+                |> noCmd
 
         ChangeTypePrefix prefix ->
-            { model | settings = { settings | typePrefix = prefix } } => Cmd.none
+            { model | settings = { settings | typePrefix = prefix } } |> noCmd
 
         SetSchema schema ->
-            { model | settings = { settings | schema = schema } } => Cmd.none
+            { model | settings = { settings | schema = schema } } |> noCmd
 
         SetQuery query ->
-            { model | settings = { settings | query = query } } => Cmd.none
+            { model | settings = { settings | query = query } } |> noCmd
 
         GenerateElmCode ->
-            model => generateElmCode (settings |> Settings.encode)
+            ( model, generateElmCode (settings |> Settings.encode) )
 
         ElmCodeGenerationResult res ->
             { model | elmCode = Just res, errors = Nothing }
-                => Cmd.none
+                |> noCmd
 
         ElmCodeGenerationError errors ->
             { model | elmCode = Nothing, errors = Just errors }
-                => Cmd.none
+                |> noCmd
 
         SelectGeneratedElmCode ->
-            model => selectText_Pre resultCodeElementId
+            ( model, selectText_Pre resultCodeElementId )
 
 
 
@@ -144,12 +154,13 @@ view model =
         { settings } =
             model
     in
-    div [ style [ "padding-left" => "20px" ] ]
+    div [ style "padding-left" "20px" ]
         [ h1 [] [ text "GraphQL ➡ Elm" ]
         , div []
             [ div []
                 [ if model.isSchemaQueryExpanded then
                     button [ onClick ToggleSchemaQuery ] [ text "Collapse" ]
+
                   else
                     button [ onClick ToggleSchemaQuery ] [ text "➡ Use this query to get schema from backend" ]
                 , viewIf model.isSchemaQueryExpanded <|
@@ -184,12 +195,13 @@ view model =
                 [ type_ "text"
                 , onInput ChangeTypePrefix
                 , value settings.typePrefix
-                , style [ "width" => "30px", "margin-left" => "10px" ]
+                , style "width" "30px"
+                , style "margin-left" "10px"
                 ]
                 []
             ]
         , div []
-            [ button [ onClick GenerateElmCode ] [ text "\x1F937 Generate Elm" ]
+            [ button [ onClick GenerateElmCode ] [ text "\u{1F937} Generate Elm" ]
             , viewIf (isJust model.elmCode) <|
                 button [ onClick SelectGeneratedElmCode ] [ text "Select generated code" ]
             ]
@@ -223,7 +235,7 @@ checkbox msg name isChecked =
 viewTextarea : String -> String -> (String -> msg) -> Html msg
 viewTextarea headerText val msg =
     div
-        [ style [ "display" => "inline-block" ] ]
+        [ style "display" "inline-block" ]
         [ h1 [] [ text headerText ]
         , textarea
             [ onInput msg
