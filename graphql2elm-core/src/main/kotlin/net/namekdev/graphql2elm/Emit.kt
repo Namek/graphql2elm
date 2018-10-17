@@ -14,7 +14,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
         emit.lineEmit("import GraphQL.Request.Builder.Arg as Arg")
 
     if (inputType != null)
-        emit.lineEmit("import GraphQL.Request.Builder.Var as var")
+        emit.lineEmit("import GraphQL.Request.Builder.Var as Var")
 
     allTypes
             .groupBy { it.name }
@@ -65,14 +65,19 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
         sb.toString()
     }()
 
-    if (inputType == null) {
-        emit.lineContinue("Request ", op.opType.name, " ", returnTypeAsStr)
-    }
-    else {
-        emit.lineContinue("Document ", op.opType.name, " ", returnTypeAsStr, " ", op.inputTypeName())
+    if (inputType != null) {
+        emit.lineContinue(op.inputTypeName())
+        if (!inputType.isScalarType)
+            emit.lineContinue(" a")
+        emit.lineContinue(" -> ")
     }
 
+    emit.lineContinue("Request ", op.opType.name, " ", returnTypeAsStr)
+
     emit.lineBegin(op.functionName())
+    if (inputType != null) {
+        emit.lineContinue(" input")
+    }
     emit.lineEnd(" =")
 
     // define variables
@@ -335,8 +340,14 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     appendDecoder(op.fields, nullableCount - 1, false)
 
     emit.indentForward()
-    emit.lineEmit("|> queryDocument")
-    emit.lineEmit("|> request ")
+    emit.lineBegin("|> ")
+    emit.lineContinue(if (op.opType == OpType.Mutation) "mutation" else "query")
+    emit.lineEnd("Document")
+    emit.lineBegin("|> request ")
+    if (inputType == null)
+        emit.lineContinue("()")
+    else
+        emit.lineContinue("input")
     emit.indentReset()
 
 

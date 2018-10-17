@@ -133,7 +133,7 @@ actual fun main(args: Array<String>) {
     """
 
 
-    generateElmCode(query = str7, schema = queryForSchema())
+    generateElmCode(query = str4, schema = queryForSchema())
             .map { print(it) }
             .mapError {
                 it.map { "[E] $it" }.forEach(::println)
