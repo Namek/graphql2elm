@@ -115,8 +115,25 @@ actual fun main(args: Array<String>) {
     }
     """
 
+    // test reducing of nested maybes
+    val str7 = """
+    query {
+      currentUser {
+        transactions {
+          payees {
+            transactions {
+              payees {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+    """
 
-    generateElmCode(query = str6, schema = queryForSchema())
+
+    generateElmCode(query = str7, schema = queryForSchema())
             .map { print(it) }
             .mapError {
                 it.map { "[E] $it" }.forEach(::println)

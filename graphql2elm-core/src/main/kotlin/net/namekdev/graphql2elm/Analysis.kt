@@ -6,18 +6,17 @@ package net.namekdev.graphql2elm
  * For instance, if there is selection like: 1 field -> 1 field -> 3 fields
  * then it's reduced by the first two levels of that selection or
  * just a first one if the second is a list.
- * TODO check if that's all true (needs tests)
  */
-fun inferReturnType(op: OperationDef): Pair<AField, Boolean> {
+fun inferReturnType(op: OperationDef): Pair<AField, Int> {
     var fields = op.fields
     var cur: AField? = null
     var depth = 0
-    var foundAnyNullable = false
+    var nullableCount = 0
 
     loop@ while (fields.size == 1) {
         cur = fields[0]
         if (cur.isNullable) {
-            foundAnyNullable = true
+            nullableCount++
         }
 
         if (cur.type is TObject) {
@@ -26,12 +25,11 @@ fun inferReturnType(op: OperationDef): Pair<AField, Boolean> {
             depth += 1
         }
         else {
-            // TODO normal
             break@loop
         }
     }
 
-    return Pair(cur!!, foundAnyNullable)
+    return Pair(cur!!, nullableCount)
 }
 
 fun inferInputType(op: OperationDef): TObject? {

@@ -5,7 +5,7 @@ import net.namekdev.graphql2elm.parsers.GraphQLParser
 fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     val emit = CodeEmitter(emitCfg)
     val inputType = inferInputType(op)
-    val (returnSelection, isReturnSelectionNullable) = inferReturnType(op)
+    val (returnSelection, nullableCount) = inferReturnType(op)
     val (generatedTypes, allTypes) = traverseForNewTypes(op, returnSelection, emitCfg)
 
     emit.lineEmit("import GraphQL.Request.Builder exposing (..)")
@@ -45,12 +45,13 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
         val sb = StringBuilder()
         val returnTypeAsStr = returnSelection.stringifyType(generatedTypes, emit.cfg)
         val isCompound = returnTypeAsStr.contains(' ')
+        val hasAlreadyEmittedMaybe = emit.cfg.emitMaybeForNullableFields && returnSelection.isNullable
+        val shouldEmitMaybe = !hasAlreadyEmittedMaybe && emit.cfg.emitMaybeForNullableFields
+        var braceLevels = if (isCompound) 1 else 0
 
-        if (isCompound || isReturnSelectionNullable)
-            sb.append("(")
-
-        if (isReturnSelectionNullable) {
-            sb.append("Maybe ")
+        if (shouldEmitMaybe) {
+            sb.append("(Maybe ")
+            braceLevels += 1
         }
 
         if (isCompound)
@@ -58,10 +59,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 
         sb.append(returnTypeAsStr)
 
-        if (isCompound)
-            sb.append(")")
-
-        if (isCompound || isReturnSelectionNullable)
+        while (braceLevels-- > 0)
             sb.append(")")
 
         sb.toString()
@@ -115,7 +113,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     }
 
 
-    fun appendDecoder(fields: List<AField>, chainWithForObject: Boolean = false) {
+    fun appendDecoder(fields: List<AField>, leftNullablesToReduce: Int, chainWithForObject: Boolean = false) {
         if (!chainWithForObject)
             emit.lineEnd("extract")
 
@@ -124,6 +122,9 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
         var isFirstField = true
         for (field in fields) {
             val fieldType = field.type
+            val emitThisFieldAsNullable = emitCfg.emitMaybeForNullableFields
+                && field.isNullable && leftNullablesToReduce <= 0
+
             emit.lineBegin()
 
             if (chainWithForObject) {
@@ -228,7 +229,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             }
 
             // field decoder
-            if (emitCfg.emitMaybeForNullableFields && field.isNullable) {
+            if (emitThisFieldAsNullable) {
                 if (fieldType is TObject) {
                     emit.lineBegin("( ")
                     emit.indentForward()
@@ -243,12 +244,18 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
             if (fieldType is TObject) {
                 emit.lineBegin("(")
 
+                val deepLeftNullablesToReduce =
+                    if (field.isNullable)
+                        leftNullablesToReduce - 1
+                    else
+                        leftNullablesToReduce
+
                 if (fieldType.fields.size > 1) {
                     emit.lineEnd(" object ", field.stringifyType(generatedTypes, emit.cfg))
-                    appendDecoder(fieldType.fields, true)
+                    appendDecoder(fieldType.fields, deepLeftNullablesToReduce, true)
                 }
                 else {
-                    appendDecoder(fieldType.fields, false)
+                    appendDecoder(fieldType.fields, deepLeftNullablesToReduce, false)
                 }
 
                 emit.lineEnd(")")
@@ -270,7 +277,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
 
                 if (subType is TObject) {
                     emit.lineContinue(" object ", subType.stringifyType(generatedTypes, emit.cfg))
-                    appendDecoder(subType.fields, true)
+                    appendDecoder(subType.fields, leftNullablesToReduce - 1)
                 }
                 // TODO: does it even exist?
 //                else if (subType is QListField) {
@@ -297,7 +304,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
                 emit.lineContinue(emitCfg.backendTypeToFrontendDecoder(fieldType))
             }
 
-            if (emitCfg.emitMaybeForNullableFields && field.isNullable) {
+            if (emitThisFieldAsNullable) {
                 if (fieldType is TObject) {
                     emit.lineEnd(")")
                     emit.indentBackward()
@@ -325,7 +332,7 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
     }
 
     emit.indentForward()
-    appendDecoder(op.fields, false)
+    appendDecoder(op.fields, nullableCount - 1, false)
 
     emit.indentForward()
     emit.lineEmit("|> queryDocument")
