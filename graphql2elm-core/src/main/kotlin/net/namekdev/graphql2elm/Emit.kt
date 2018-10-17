@@ -104,8 +104,26 @@ fun emitElmCode(op: OperationDef, emitCfg: CodeEmitterConfig): String {
                 }
                 else -> throw Exception("variable of unsupported type?")
             }
-            emit.lineEnd(funcName)
+            emit.lineContinue(funcName)
 
+            // default value if it's optional
+            if (v.isNullable) {
+                val defaultValue = when (v.type) {
+                    is TScalar -> {
+                        when (v.type.name) {
+                            "String" -> "\"\""
+                            "Int" -> "0"
+                            "Float" -> "0.0"
+                            "Boolean" -> "False"
+                            else -> throw Exception("well")
+                        }
+                    }
+                    else -> throw Exception("variable of unsupported type?")
+                }
+                emit.lineContinue(" $defaultValue")
+            }
+
+            emit.lineEnd()
             emit.indentBackward()
 
             if (i < op.variables.size-1) {
