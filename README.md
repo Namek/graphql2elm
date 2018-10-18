@@ -1,7 +1,7 @@
 # GraphQL to Elm
 Generate [Elm](http://elm-lang.org) code based on [GraphQL](http://graphql.org/) query and schema. Generated code uses [jamesmacaulay/elm-graphql](https://github.com/jamesmacaulay/elm-graphql) library.
 
-See [online web generator](https://namek.github.io/graphql2elm/).
+See [online web generator](https://namek.github.io/graphql2elm/). Also see [Examples](https://github.com/Namek/graphql2elm/wiki/Examples).
 
 # Status
 
